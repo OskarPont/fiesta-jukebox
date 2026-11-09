@@ -412,11 +412,35 @@ document.addEventListener('pointerdown', (e) => {
   if (!$('results').hidden && !$('searchWrap').contains(e.target)) closeResults();
 });
 
-function closeResults() { $('results').hidden = true; searchSeq++; }
+function closeResults() { $('results').hidden = true; $('results').style.maxHeight = ''; searchSeq++; }
+
+// Con una mano y el teclado abierto: el buscador sube arriba y los resultados caben sobre el teclado.
+function scrollSearchToTop() {
+  // el ancla marca el hueco natural del buscador; se suma su margen superior para dejarlo pegado arriba
+  const top = $('searchAnchor').getBoundingClientRect().top + window.scrollY + (parseFloat(getComputedStyle($('searchWrap')).marginTop) || 0);
+  if (Math.abs($('searchWrap').getBoundingClientRect().top) < 2 && Math.abs(window.scrollY - top) < 2) return;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top, behavior: reduce ? 'auto' : 'smooth' });
+}
+qInput.addEventListener('focus', () => { scrollSearchToTop(); setTimeout(scrollSearchToTop, 60); });
+
+function fitResults() {
+  const box = $('results');
+  if (box.hidden) return;
+  const vv = window.visualViewport;
+  const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+  const searchBottom = $('searchWrap').querySelector('.search').getBoundingClientRect().bottom;
+  box.style.maxHeight = Math.max(140, visibleBottom - searchBottom - 12) + 'px';
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', fitResults);
+  window.visualViewport.addEventListener('scroll', fitResults);
+}
+window.addEventListener('resize', fitResults);
 
 async function doSearch(term) {
   const seq = ++searchSeq; lastTerm = term;
-  const box = $('results'); box.hidden = false;
+  const box = $('results'); box.hidden = false; fitResults();
   setText($('resultsInfo'), 'Buscando…');
   $('resultsList').replaceChildren(el('li', { class: 'res-loading' }, el('span', { class: 'spinner' })));
   try {

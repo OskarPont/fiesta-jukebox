@@ -275,6 +275,40 @@ async function main() {
     await g[0].keyboard.press('Escape');
     await waitFor(async () => g[0].locator('#results').isHidden());
   });
+  await step('buscador: sube arriba al enfocar y los resultados caben sobre el teclado (#3)', async () => {
+    const orig = g[0].viewportSize();
+    try {
+      // con la cola corta la pagina no tiene recorrido para subir el buscador: se alarga a mano
+      await g[0].evaluate(() => { document.body.style.paddingBottom = '1200px'; });
+      for (const [w, h, kb] of [[375, 667, 360], [390, 844, 480]]) {
+        await g[0].setViewportSize({ width: w, height: h });
+        await g[0].evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+        await g[0].focus('#q');
+        await sleep(700); // la animacion suave termina
+        await waitFor(async () => Math.abs(await g[0].evaluate(() => document.getElementById('searchWrap').getBoundingClientRect().top)) <= 2, { timeout: 3000, msg: `buscador no sube arriba (${w}x${h}) ` + JSON.stringify(await g[0].evaluate(() => ({ top: document.getElementById('searchWrap').getBoundingClientRect().top, sy: scrollY, sh: document.documentElement.scrollHeight, ih: innerHeight }))) });
+        await g[0].fill('#q', T(4).name.toLowerCase());
+        await g[0].locator('#resultsList .res').first().waitFor({ timeout: 4000 });
+        await g[0].setViewportSize({ width: w, height: kb });
+        await g[0].evaluate(() => window.dispatchEvent(new Event('resize')));
+        await sleep(200);
+        const m = await g[0].evaluate(() => {
+          const b = (e) => e.getBoundingClientRect().bottom;
+          const row = document.querySelector('#resultsList .res');
+          return { ih: innerHeight, row: b(row), add: b(row.querySelector('.add-btn')), box: b(document.getElementById('results')), sw: document.documentElement.scrollWidth, iw: innerWidth };
+        });
+        expect(m.row <= m.ih && m.add <= m.ih, `primer resultado/+ fuera de pantalla (${w}x${kb}): ${JSON.stringify(m)}`);
+        expect(m.box <= m.ih, `resultados no caben sobre el teclado (${w}x${kb}): ${JSON.stringify(m)}`);
+        expect(m.sw <= m.iw, `scroll horizontal (${w}x${kb}): ${JSON.stringify(m)}`);
+        await g[0].keyboard.press('Escape');
+        await waitFor(async () => g[0].locator('#results').isHidden());
+        expect((await g[0].inputValue('#q')) === '', 'buscador vacio');
+        await g[0].evaluate(() => document.activeElement && document.activeElement.blur());
+      }
+    } finally {
+      await g[0].setViewportSize(orig);
+      await g[0].evaluate(() => { document.body.style.paddingBottom = ''; window.scrollTo(0, 0); });
+    }
+  });
   await step('API: limite por invitado y duplicados', async () => {
     const r1 = await api(gctx[0], 'POST', 'queue', { uri: T(5).uri });   // no buscada: desconocida
     expect(r1.status === 400 && r1.body.error === 'unknown_track', 'uri no buscada: ' + JSON.stringify(r1));
