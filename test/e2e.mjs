@@ -406,7 +406,11 @@ async function main() {
     await row.locator('button', { hasText: 'Expulsar' }).click();
     await row.locator('button', { hasText: '¿Seguro?' }).first().click();
     await g[2].waitForSelector('#view-join:not([hidden])', { timeout: 4000 });
-    expect((await g[2].textContent('#joinError')).includes('sacado'), 'mensaje de expulsion');
+    // el aviso tiene que verse, no solo existir en el DOM (#1)
+    await waitFor(async () => (await g[2].textContent('#joinNotice')).includes('sacado'), { timeout: 3000, msg: 'aviso de expulsion' });
+    expect(await g[2].locator('#joinNotice').isVisible(), 'aviso de expulsion visible');
+    expect((await g[2].textContent('#joinNotice')).includes('sacado'), 'mensaje de expulsion');
+    expect(await g[2].locator('#joinError').isHidden(), 'la expulsion no usa el estilo de error');
     // volver a entrar
     await g[2].fill('#pin', pin); await g[2].fill('#name', 'Carla'); await g[2].click('#joinBtn');
     await g[2].waitForSelector('#view-main:not([hidden])');
@@ -415,10 +419,23 @@ async function main() {
     await row2.locator('button', { hasText: 'Banear' }).click();
     await row2.locator('button', { hasText: '¿Banear?' }).click();
     await g[1].waitForSelector('#view-join:not([hidden])', { timeout: 4000 });
+    // en el momento del baneo (sin recargar) ya ve su aviso, sin formulario ni estilo de error (#1, review de #16)
+    await waitFor(async () => (await g[1].textContent('#joinNotice')).includes('No puedes entrar'), { timeout: 4000, msg: 'aviso de baneo en sesion' });
+    expect(await g[1].locator('#joinNotice').isVisible(), 'aviso de baneo visible en sesion');
+    expect(await g[1].locator('#joinForm').isHidden(), 'sin formulario tras el baneo');
+    expect(await g[1].locator('#joinClosed').isHidden(), 'sin "no hay fiesta" tras el baneo');
+    expect(await g[1].locator('#joinError').isHidden(), 'el baneo no usa el estilo de error');
     const me = await api(gctx[1], 'GET', 'me');
     expect(me.status === 403 && me.body.error === 'banned', 'baneado: ' + JSON.stringify(me));
     const rj = await api(gctx[1], 'POST', 'join', { pin, name: 'Marc' });
     expect(rj.status === 403, 'baneado no vuelve: ' + rj.status);
+    // al recargar, el baneado ve su aviso y no el falso "no hay fiesta" (#1)
+    await g[1].reload();
+    await waitFor(async () => (await g[1].textContent('#joinNotice')).includes('No puedes entrar'), { timeout: 4000, msg: 'aviso de baneo tras recargar' });
+    expect((await g[1].textContent('#joinNotice')).includes('No puedes entrar'), 'aviso de baneo');
+    expect(await g[1].locator('#joinNotice').isVisible(), 'aviso de baneo visible');
+    expect(await g[1].locator('#joinClosed').isHidden(), 'sin el falso "no hay fiesta"');
+    expect(await g[1].locator('#joinForm').isHidden(), 'sin formulario de entrada');
     await waitFor(async () => (await admin.locator('#card-guests .ag-item', { hasText: 'Baneado' }).count()) === 1);
   });
   await step('admin: nuevo PIN mantiene a los invitados; con expulsar los saca', async () => {
@@ -572,8 +589,11 @@ async function main() {
     await admin.locator('#card-party button', { hasText: 'Terminar fiesta' }).click();
     await admin.locator('#card-party button', { hasText: 'Pulsa otra vez' }).click();
     await g[0].waitForSelector('#view-join:not([hidden])', { timeout: 5000 });
-    await waitFor(async () => (await g[0].textContent('#joinError')).includes('terminado'), { msg: 'mensaje de fin' });
+    await waitFor(async () => (await g[0].textContent('#joinNotice')).includes('terminado'), { msg: 'mensaje de fin' });
     await g[0].waitForSelector('#joinClosed:not([hidden])');
+    expect(await g[0].locator('#joinNotice').isVisible(), 'aviso de fin visible (#1)');
+    // region viva siempre presente (sin hidden) para que los lectores de pantalla anuncien el cambio
+    expect(await g[0].getAttribute('#joinNotice', 'role') === 'status' && await g[0].getAttribute('#joinNotice', 'hidden') === null, 'aviso como region viva');
     await shot(g[0], '21-guest-party-ended');
     await shot(admin, '44-admin-party-stopped', { fullPage: true });
   });

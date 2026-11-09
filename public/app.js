@@ -37,10 +37,32 @@ function setJoinError(msg) {
   if (msg) { const f = $('joinForm'); f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake'); }
 }
 
+/**
+ * Aviso de estado en la entrada (fin de fiesta, expulsion, sesion caducada, baneo). Fuera del formulario: se ve aunque no haya fiesta.
+ * La region (role=status) esta siempre en el DOM y se oculta por CSS cuando esta vacia; el texto se escribe en el
+ * siguiente frame para que los lectores de pantalla anuncien el cambio.
+ */
+function setJoinNotice(msg) {
+  const n = $('joinNotice');
+  n.textContent = '';
+  if (msg) requestAnimationFrame(() => { n.textContent = msg; });
+}
+
+/** Baneado: la fiesta sigue en marcha, asi que ni formulario ni "no hay fiesta"; solo el aviso. */
+function showBanned(msg) {
+  clearInterval(waitTimer);
+  show('join');
+  setJoinError('');
+  $('joinForm').hidden = true;
+  $('joinClosed').hidden = true;
+  setJoinNotice(msg || 'No puedes entrar a esta fiesta.');
+}
+
 async function showJoin(notice) {
   clearInterval(waitTimer);
   show('join');
-  setJoinError(notice || '');
+  setJoinError('');
+  setJoinNotice(notice || '');
   let party = null;
   try { party = await api('party'); } catch { /* sin red */ }
   paintJoin(party);
@@ -73,6 +95,7 @@ $('joinForm').addEventListener('submit', async (e) => {
     store.set('fiesta.name', name);
     enterMain();
   } catch (err) {
+    if (err.code === 'banned') { showBanned(err.message); return; }
     setJoinError(err.message);
     if (err.code === 'no_party') showJoin(err.message);
   } finally { btn.disabled = false; btn.textContent = 'Entrar'; }
@@ -88,7 +111,13 @@ function enterMain() {
     onState: render,
     onToast: (t) => toast(t.text, t.kind),
     onStatus: (s) => { sseOk = s === 'open'; updateBanner(); },
-    onKicked: () => { if (state && !state.party.active) return; me = null; showJoin('El anfitrión te ha sacado de la fiesta.'); },
+    onKicked: async () => {
+      if (state && !state.party.active) return;
+      me = null;
+      // el servidor usa el mismo evento para expulsar y para banear: preguntar cual ha sido
+      try { await api('me'); } catch (e) { if (e instanceof ApiError && e.code === 'banned') { showBanned(e.message); return; } }
+      showJoin('El anfitrión te ha sacado de la fiesta.');
+    },
     onUnauthorized: () => { me = null; showJoin('Tu sesión ha caducado. Vuelve a entrar con el PIN.'); },
     probe: () => api('me'),
   });
@@ -483,7 +512,7 @@ async function init() {
   if (p) { $('pin').value = p.replace(/\D/g, '').slice(0, 4); history.replaceState(null, '', location.pathname); }
   const saved = store.get('fiesta.name'); if (saved) $('name').value = saved;
   let meRes = null;
-  try { meRes = await api('me'); } catch (e) { if (e instanceof ApiError && e.code === 'banned') { show('join'); paintJoin({ active: false }); setJoinError(e.message); return; } }
+  try { meRes = await api('me'); } catch (e) { if (e instanceof ApiError && e.code === 'banned') { showBanned(e.message); return; } }
   if (meRes) { me = meRes.guest; enterMain(); return; }
   await showJoin();
   if ($('pin').value.length === 4) $('name').focus(); else $('pin').focus({ preventScroll: true });
