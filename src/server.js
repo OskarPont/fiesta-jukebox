@@ -37,7 +37,7 @@ export async function createApp(cfg = config, { logger = false } = {}) {
   const engine = new Engine({
     store, party, spotify, library,
     onChange: (force) => hub.changed(force),
-    toast: (t, k) => hub.toast(t, k),
+    toast: (t, k, by) => hub.toast(t, k, by),
     hasClients: () => hub.hasClients(),
     getScale: () => (mock ? mock.ctl.state.speed : 1),
     feedLeadMs: cfg.FEED_LEAD_MS,
@@ -206,7 +206,7 @@ export async function createApp(cfg = config, { logger = false } = {}) {
       const g = needGuest(req);
       rate('action', g.id);
       const item = party.addTrack(g, req.body?.uri);
-      hub.toast(`${g.name} añadió ${item.name}`, 'add');
+      hub.toast(`${g.name} añadió ${item.name}`, 'add', g.id);
       changed(); engine.poke();
       return { item: { qid: item.qid, name: item.name } };
     });

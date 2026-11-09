@@ -246,8 +246,9 @@ export class Hub {
     for (const c of [...this.clients]) this.sendState(c, common);
   }
 
-  toast(text, kind = 'info') {
-    const payload = `event: toast\ndata: ${JSON.stringify({ text, kind })}\n\n`;
+  /** Aviso a todos. `by` = id del invitado al que se refiere (su cancion), para que cada app filtre lo suyo. */
+  toast(text, kind = 'info', by = null) {
+    const payload = `event: toast\ndata: ${JSON.stringify(by ? { text, kind, by } : { text, kind })}\n\n`;
     for (const c of [...this.clients]) this.write(c, payload);
   }
 

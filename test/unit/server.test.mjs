@@ -6,6 +6,7 @@ import path from 'node:path';
 import { config, parseTrustProxy } from '../../src/config.js';
 import { createApp } from '../../src/server.js';
 import { makeAdminCookie } from '../../src/auth.js';
+import { Hub } from '../../src/sse.js';
 
 const SECRET = 'secreto-de-prueba-de-32-caracteres!!';
 
@@ -22,6 +23,19 @@ const badJoin = (app, remoteAddress, xff) => app.inject({
   method: 'POST', url: '/fiesta/api/join', remoteAddress,
   headers: { 'content-type': 'application/json', ...(xff ? { 'x-forwarded-for': xff } : {}) },
   payload: JSON.stringify({ pin: 'xxxx', name: 'Intruso' }),
+});
+
+test('los avisos llevan `by` solo cuando se refieren a la canción de un invitado (#2)', () => {
+  const hub = new Hub({ ctx: {}, hbMs: 60000 });
+  clearInterval(hub.hb);
+  const sent = [];
+  hub.clients.add({ res: { destroyed: false, writableEnded: false, write: (c) => sent.push(c) } });
+  hub.toast('Laura añadió Fuego', 'add', 'g1');
+  hub.toast('Pau se ha unido', 'join');
+  hub.clients.clear();
+  const data = sent.map((c) => JSON.parse(/data: (.+)\n/.exec(c)[1]));
+  assert.deepEqual(data[0], { text: 'Laura añadió Fuego', kind: 'add', by: 'g1' });
+  assert.deepEqual(data[1], { text: 'Pau se ha unido', kind: 'join' });
 });
 
 test('TRUST_PROXY: valores', () => {

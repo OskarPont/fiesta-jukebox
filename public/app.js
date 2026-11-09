@@ -48,6 +48,18 @@ function setJoinNotice(msg) {
   if (msg) requestAnimationFrame(() => { n.textContent = msg; });
 }
 
+/**
+ * Avisos del servidor que ve un invitado: solo los que le afectan.
+ * Su cancion anadida o sonando (`by` = su id), salto por votacion y pausa/reanudar. Nada de "se ha unido"
+ * ni de lo que anaden otros: con mucha gente era ruido constante y tapaba lo importante.
+ */
+const GUEST_TOAST_KINDS = new Set(['skip', 'control']);
+function guestSeesToast(t) {
+  if (!t || !t.text) return false;
+  if (t.kind === 'add' || t.kind === 'now') return !!me && t.by === me.id;
+  return GUEST_TOAST_KINDS.has(t.kind);
+}
+
 /** Baneado: la fiesta sigue en marcha, asi que ni formulario ni "no hay fiesta"; solo el aviso. */
 function showBanned(msg) {
   clearInterval(waitTimer);
@@ -109,7 +121,7 @@ function enterMain() {
   events = connectEvents({
     path: 'events?view=guest',
     onState: render,
-    onToast: (t) => toast(t.text, t.kind),
+    onToast: (t) => { if (guestSeesToast(t)) toast(t.text, t.kind); },
     onStatus: (s) => { sseOk = s === 'open'; updateBanner(); },
     onKicked: async () => {
       if (state && !state.party.active) return;
