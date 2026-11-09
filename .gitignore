@@ -9,3 +9,8 @@ spotify.json
 *.log
 test/shots-likes
 docker-compose.override.yml
+.claude/
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/build/
+.impeccable/config.local.json
