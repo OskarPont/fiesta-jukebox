@@ -1,0 +1,20 @@
+{
+  "name": "fiesta",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/unit/*.test.mjs",
+    "e2e": "node test/e2e.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/static": "^10.1.5",
+    "fastify": "^5.12.5",
+    "qrcode": "^1.5.4"
+  }
+}

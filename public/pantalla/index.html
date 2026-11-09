@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>fiesta. pantalla</title>
+  <meta name="theme-color" content="#0b0b0f">
+  <link rel="icon" href="../icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
+  <link rel="stylesheet" href="../shared.css">
+  <link rel="stylesheet" href="pantalla.css">
+</head>
+<body>
+  <div id="bg" aria-hidden="true"></div>
+  <div id="bigToasts" aria-live="polite"></div>
+
+  <main id="stage" class="stage" hidden>
+    <section class="left">
+      <div class="cover-big">
+        <img id="cover" alt="" hidden>
+        <div id="coverPh" class="cover-ph"></div>
+      </div>
+      <div class="meta">
+        <p class="kicker"><span id="npEq" class="eq paused"><i></i><i></i><i></i></span><span id="kickerText">Ahora suena</span></p>
+        <h1 id="npTitle" class="title">Esperando la primera canción</h1>
+        <p id="npArtist" class="artist"></p>
+        <div class="np-chips"><span id="npBy" class="chip big" hidden></span><span id="npLikes" class="chip big likes" hidden></span></div>
+        <div class="progress">
+          <div class="bar"><i id="barFill"></i></div>
+          <div class="times"><span id="tNow">0:00</span><span id="tTotal">0:00</span></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="right">
+      <header class="brand"><span class="logo">fiesta<span class="dot">.</span></span><span id="partyName" class="pname ellipsis"></span></header>
+      <div class="next-wrap">
+        <h2 class="next-h">A continuación</h2>
+        <ol id="next" class="next"></ol>
+        <p id="nextEmpty" class="next-empty" hidden>La cola está vacía.<br>¡Escanea el código y pon algo!</p>
+        <p id="nextMore" class="next-more" hidden></p>
+      </div>
+      <div id="qrBlock" class="qr-block">
+        <div class="qr"><img id="qr" alt="Código QR para entrar a la fiesta"></div>
+        <div class="qr-text">
+          <p class="qr-cta">Escanea y pon tu canción</p>
+          <p id="qrUrl" class="qr-url"></p>
+          <p class="qr-pin">PIN <b id="qrPin"></b></p>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <section id="summary" class="summary" hidden>
+    <div class="sum-inner">
+      <header class="sum-head">
+        <span class="logo">fiesta<span class="dot">.</span></span>
+        <h1 class="sum-title">Resumen de la noche</h1>
+        <p id="sumParty" class="sum-party"></p>
+      </header>
+      <div class="sum-stats">
+        <div><b id="sumSongs">0</b><span>canciones</span></div>
+        <div><b id="sumLikes">0</b><span>likes</span></div>
+        <div><b id="sumGuests">0</b><span>invitados</span></div>
+      </div>
+      <div class="sum-grid">
+        <section id="sumSong" class="sum-card song">
+          <h2>Canción de la noche</h2>
+          <div class="sum-song"><img id="sumSongImg" alt=""><div><p id="sumSongName" class="big-t"></p><p id="sumSongArt" class="muted-t"></p><p id="sumSongMeta" class="pink-t"></p></div></div>
+        </section>
+        <section class="sum-card">
+          <h2>Mejor DJ</h2>
+          <p id="sumDj" class="big-t"></p><p id="sumDjMeta" class="muted-t"></p>
+          <h2 class="mt">Quien más canciones puso</h2>
+          <p id="sumActive" class="big-t"></p><p id="sumActiveMeta" class="muted-t"></p>
+        </section>
+        <section class="sum-card">
+          <h2>Top 5</h2>
+          <ol id="sumTop" class="sum-top"></ol>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <section id="locked" class="locked" hidden>
+    <div class="card">
+      <h1 class="logo big">fiesta<span class="dot">.</span></h1>
+      <p>Esta pantalla muestra el PIN, así que hay que abrirla desde el panel del anfitrión.</p>
+      <a class="btn btn-primary" href="../admin/">Ir al panel</a>
+    </div>
+  </section>
+  <section id="idle" class="locked" hidden>
+    <div class="card">
+      <h1 class="logo big">fiesta<span class="dot">.</span></h1>
+      <p>Esperando a que el anfitrión empiece la fiesta…</p>
+    </div>
+  </section>
+
+  <p id="fsHint" class="fs-hint">Haz clic para pantalla completa</p>
+  <script type="module" src="pantalla.js"></script>
+</body>
+</html>

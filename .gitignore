@@ -1,0 +1,11 @@
+node_modules
+data
+.env
+test/shots
+.env.*
+!.env.example
+config.json
+spotify.json
+*.log
+test/shots-likes
+docker-compose.override.yml

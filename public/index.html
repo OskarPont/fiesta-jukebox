@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>fiesta.</title>
+  <meta name="description" content="Pon música en la fiesta desde tu móvil">
+  <meta name="theme-color" content="#0b0b0f">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="shared.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div id="bg" aria-hidden="true"></div>
+  <div id="toasts" aria-live="polite"></div>
+
+  <main id="app">
+    <!-- ENTRADA -->
+    <section id="view-join" class="view join" hidden>
+      <div class="join-inner">
+        <h1 class="logo big">fiesta<span class="dot">.</span></h1>
+        <p id="joinParty" class="join-party"></p>
+        <div id="joinClosed" class="card closed" hidden>
+          <span class="eq"><i></i><i></i><i></i></span>
+          <p>Ahora mismo no hay fiesta.<br>Vuelve cuando el anfitrión la empiece.</p>
+        </div>
+        <form id="joinForm" class="join-form" autocomplete="off" novalidate>
+          <label class="field"><span>PIN de la fiesta</span>
+            <input id="pin" class="input pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0000" autocomplete="one-time-code" aria-describedby="joinError">
+          </label>
+          <label class="field"><span>Tu nombre</span>
+            <input id="name" class="input" maxlength="24" placeholder="Cómo te llamas" autocomplete="given-name" enterkeyhint="go">
+          </label>
+          <p id="joinError" class="form-error" role="alert" hidden></p>
+          <button id="joinBtn" class="btn btn-primary btn-block btn-lg" type="submit">Entrar</button>
+        </form>
+        <p class="join-foot">Sin app ni cuenta. Busca canciones y ponlas en la cola.</p>
+      </div>
+    </section>
+
+    <!-- PRINCIPAL -->
+    <section id="view-main" class="view main" hidden>
+      <header class="top">
+        <span class="logo">fiesta<span class="dot">.</span></span>
+        <span id="partyName" class="party-name ellipsis"></span>
+        <button id="meBtn" class="me-btn" type="button" aria-label="Cambiar mi nombre"></button>
+      </header>
+
+      <div id="banner" class="banner" role="status" hidden></div>
+
+      <section class="np card" aria-label="Ahora suena">
+        <div class="cover-wrap">
+          <img id="cover" class="cover" alt="" hidden>
+          <div id="coverPh" class="cover-ph"></div>
+          <span id="pausedBadge" class="paused-badge" hidden>En pausa</span>
+          <button id="btnLike" class="cover-like" type="button" aria-pressed="false" hidden></button>
+        </div>
+        <div class="np-info">
+          <p class="np-kicker"><span id="npEq" class="eq paused"><i></i><i></i><i></i></span> Ahora suena</p>
+          <h2 id="npTitle" class="np-title">Nada suena todavía</h2>
+          <p id="npArtist" class="np-artist"></p>
+          <span id="npBy" class="chip" hidden></span>
+        </div>
+        <div class="progress">
+          <div class="bar"><i id="barFill"></i></div>
+          <div class="times"><span id="tNow">0:00</span><span id="tTotal">0:00</span></div>
+        </div>
+        <div class="controls">
+          <button id="btnPause" class="btn ctl" type="button"></button>
+          <button id="btnSkip" class="btn ctl" type="button"></button>
+        </div>
+        <p id="ctrlNote" class="note" hidden></p>
+      </section>
+
+      <div id="searchWrap" class="search-wrap">
+        <div class="search">
+          <span id="searchIco"></span>
+          <input id="q" type="search" placeholder="Busca una canción o artista" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Buscar canciones">
+          <button id="qClear" class="icon-btn" type="button" aria-label="Borrar búsqueda" hidden></button>
+        </div>
+        <div id="results" class="results" hidden>
+          <div class="results-head"><span id="resultsInfo"></span><button id="resultsClose" class="icon-btn" type="button" aria-label="Cerrar resultados"></button></div>
+          <ul id="resultsList" class="res-list"></ul>
+        </div>
+      </div>
+
+      <p id="quota" class="quota"></p>
+
+      <section class="queue-sec" aria-label="Cola">
+        <div class="sec-head"><h3>Cola</h3><span id="queueCount" class="chip">0</span></div>
+        <ul id="queue" class="queue"></ul>
+        <div id="queueEmpty" class="empty" hidden>
+          <span id="emptyIco"></span>
+          <p>La cola está vacía.<br>¡Pon algo!</p>
+        </div>
+      </section>
+
+      <details id="history" class="history">
+        <summary>Historial</summary>
+        <ul id="historyList" class="hist-list"></ul>
+        <p id="historyEmpty" class="muted small">Todavía no ha sonado nada.</p>
+      </details>
+    </section>
+  </main>
+
+  <dialog id="renameDlg" class="dlg">
+    <form id="renameForm" method="dialog">
+      <h3>Cambiar mi nombre</h3>
+      <input id="renameInput" class="input" maxlength="24" autocomplete="off" aria-label="Nuevo nombre">
+      <p id="renameError" class="form-error" hidden></p>
+      <div class="dlg-actions">
+        <button id="renameCancel" type="button" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

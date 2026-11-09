@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>fiesta. admin</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0b0b0f">
+  <link rel="icon" href="../icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="../shared.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <div id="toasts" aria-live="polite"></div>
+
+  <section id="login" class="login" hidden>
+    <form id="loginForm" class="card login-card" autocomplete="off">
+      <h1 class="logo big">fiesta<span class="dot">.</span></h1>
+      <p class="muted">Panel del anfitrión</p>
+      <label class="field"><span>Clave de administrador</span>
+        <input id="key" class="input" type="password" autocomplete="current-password" placeholder="Pega tu clave" required>
+      </label>
+      <p id="loginError" class="form-error" role="alert" hidden></p>
+      <button class="btn btn-primary btn-block" type="submit">Entrar</button>
+    </form>
+  </section>
+
+  <div id="dash" class="dash" hidden>
+    <header class="a-top">
+      <h1 class="logo">fiesta<span class="dot">.</span> <small>admin</small></h1>
+      <div id="topChips" class="top-chips"></div>
+      <div class="top-actions">
+        <a id="openScreen" class="btn btn-sm" href="../pantalla/" target="_blank" rel="noopener"></a>
+        <button id="logout" class="btn btn-sm btn-ghost" type="button"></button>
+      </div>
+    </header>
+    <div id="alerts" class="alerts"></div>
+    <main id="cards" class="cards"></main>
+  </div>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>
