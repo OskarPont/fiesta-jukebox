@@ -151,6 +151,13 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: 70dvh; z-i
   .np { padding: 12px 4px 20px; }
 }
 
+/* avisos abajo, sobre la zona segura: arriba tapaban el buscador fijo */
+#toasts { top: auto; bottom: max(16px, env(safe-area-inset-bottom)); }
+.toast { animation-name: toast-up; }
+.toast.out { animation-name: toast-down; }
+@keyframes toast-up { from { opacity: 0; transform: translateY(14px) scale(0.97); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes toast-down { to { opacity: 0; transform: translateY(10px) scale(0.98); } }
+
 /* like a la que suena (sobre la caratula) */
 .cover-like { position: absolute; right: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 7px; min-width: 64px; height: 46px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(16, 16, 18, 0.6); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); color: #fff; font-weight: 700; font-size: 16px; cursor: pointer; font-variant-numeric: tabular-nums; touch-action: manipulation; transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.16s var(--ease-out); }
 .cover-like:active { transform: scale(0.94); }

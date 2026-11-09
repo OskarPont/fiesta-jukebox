@@ -248,7 +248,7 @@ export class Engine {
       }
       s.fed = null;
       this.party.dirty();
-      if (this.party.active && np.fromQueue) this.toast(`Ahora suena ${np.name} (de ${fed.addedBy.name})`, 'now');
+      if (this.party.active && np.fromQueue) this.toast(`Ahora suena ${np.name} (de ${fed.addedBy.name})`, 'now', fed.addedBy.id);
     } else if (fed) {
       this.verifyAsap = true;
     }

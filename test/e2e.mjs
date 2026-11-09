@@ -96,6 +96,15 @@ async function api(ctx, method, p, data) {
 const mockState = async () => (await (await fetch(`${BASE}/api/_mock/state`)).json());
 const mockCmd = async (action, value) => fetch(`${BASE}/api/_mock/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ value }) });
 
+// registra todos los avisos (toasts) que aparecen en una pagina, aunque desaparezcan a los pocos segundos
+const watchToasts = (page) => page.evaluate(() => {
+  window.__toasts = [];
+  if (window.__toastObs) return;
+  window.__toastObs = new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.classList?.contains('toast')) window.__toasts.push(n.textContent); });
+  window.__toastObs.observe(document.body, { childList: true, subtree: true });
+});
+const seenToasts = (page) => page.evaluate(() => window.__toasts || []);
+
 async function guestJoin(page, pin, name, { viaLink = false } = {}) {
   await page.goto(viaLink ? `?p=${pin}` : '');
   await page.waitForSelector('#view-join:not([hidden])');
@@ -220,6 +229,25 @@ async function main() {
     await guestAdd(g[1], B);
     await guestAdd(g[2], C);
     await waitFor(async () => (await queueTitles(g[0])).length === 3);
+  });
+  await step('avisos: cada invitado ve solo los suyos y salen abajo (#2)', async () => {
+    for (const p of [g[0], g[1]]) await watchToasts(p);
+    const D = T(12);
+    await api(gctx[0], 'GET', `search?q=${encodeURIComponent(D.name.toLowerCase())}`);
+    const r = await api(gctx[0], 'POST', 'queue', { uri: D.uri });
+    expect(r.status === 200, 'añadir D: ' + JSON.stringify(r));
+    try {
+      await waitFor(async () => (await seenToasts(g[0])).some((t) => t.includes(D.name)), { timeout: 3000, msg: 'el que añade ve su aviso' });
+      await sleep(800);
+      expect(!(await seenToasts(g[1])).some((t) => t.includes(D.name)), 'otro invitado no ve el aviso de una canción ajena');
+      // abajo y sin tapar el buscador
+      const pos = await g[0].evaluate(() => { const h = document.getElementById('toasts').getBoundingClientRect(); return { bottom: h.bottom, vh: innerHeight }; });
+      expect(pos.bottom > pos.vh * 0.85, 'avisos abajo: ' + JSON.stringify(pos));
+    } finally {
+      // dejar la cola como estaba aunque el paso falle, para no arrastrar a los siguientes
+      await api(gctx[0], 'DELETE', `queue/${encodeURIComponent(r.body.item.qid)}`);
+      await waitFor(async () => (await queueTitles(g[0])).length === 3);
+    }
   });
   await step('votos reordenan la cola en todos (C primero)', async () => {
     const heart = (page, name) => page.locator('#queue .q-item', { hasText: name }).locator('.vote');
@@ -584,6 +612,17 @@ async function main() {
     expect(h.headers.get('x-content-type-options') === 'nosniff', 'nosniff');
     const r4 = await fetch(`${BASE}/api/admin/qr.svg`);
     expect(r4.status === 401, 'qr protegido');
+  });
+  await step('avisos: 20 entradas seguidas y el invitado no ve ningún «se ha unido» (#2)', async () => {
+    await watchToasts(g[0]);
+    // otra IP (via proxy local de confianza) para no chocar con el limite por IP del paso del PIN
+    for (let i = 0; i < 20; i++) {
+      const r = await fetch(`${BASE}/api/join`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '198.51.100.20' }, body: JSON.stringify({ pin, name: `Ola ${i + 1}` }) });
+      expect(r.status === 200, `entrada ${i + 1}: ${r.status}`);
+    }
+    await sleep(1500);
+    const seen = await seenToasts(g[0]);
+    expect(!seen.some((t) => t.includes('se ha unido')), 'sin avisos de entrada: ' + seen.join(' | '));
   });
   await step('la fiesta termina: los invitados vuelven a la entrada', async () => {
     await admin.locator('#card-party button', { hasText: 'Terminar fiesta' }).click();
