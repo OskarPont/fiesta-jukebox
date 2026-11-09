@@ -412,17 +412,27 @@ document.addEventListener('pointerdown', (e) => {
   if (!$('results').hidden && !$('searchWrap').contains(e.target)) closeResults();
 });
 
-function closeResults() { $('results').hidden = true; $('results').style.maxHeight = ''; searchSeq++; }
+function closeResults() { $('results').hidden = true; $('results').style.maxHeight = ''; searchSeq++; releaseSearchSpace(); }
 
 // Con una mano y el teclado abierto: el buscador sube arriba y los resultados caben sobre el teclado.
 function scrollSearchToTop() {
   // el ancla marca el hueco natural del buscador; se suma su margen superior para dejarlo pegado arriba
   const top = $('searchAnchor').getBoundingClientRect().top + window.scrollY + (parseFloat(getComputedStyle($('searchWrap')).marginTop) || 0);
+  // con poca cola la página no es lo bastante alta para subir el buscador: se añade el espacio que falte
+  const main = $('view-main');
+  const have = parseFloat(main.style.marginBottom) || 0;
+  const need = top + window.innerHeight - (document.documentElement.scrollHeight - have);
+  main.style.marginBottom = need > 0 ? Math.ceil(need) + 'px' : '';
   if (Math.abs($('searchWrap').getBoundingClientRect().top) < 2 && Math.abs(window.scrollY - top) < 2) return;
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   window.scrollTo({ top, behavior: reduce ? 'auto' : 'smooth' });
 }
 qInput.addEventListener('focus', () => { scrollSearchToTop(); setTimeout(scrollSearchToTop, 60); });
+// el espacio extra se quita al terminar: resultados cerrados y buscador sin foco
+function releaseSearchSpace() {
+  if ($('results').hidden && document.activeElement !== qInput) $('view-main').style.marginBottom = '';
+}
+qInput.addEventListener('blur', releaseSearchSpace);
 
 function fitResults() {
   const box = $('results');

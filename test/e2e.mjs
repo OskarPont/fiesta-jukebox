@@ -278,11 +278,10 @@ async function main() {
   await step('buscador: sube arriba al enfocar y los resultados caben sobre el teclado (#3)', async () => {
     const orig = g[0].viewportSize();
     try {
-      // con la cola corta la pagina no tiene recorrido para subir el buscador: se alarga a mano
-      await g[0].evaluate(() => { document.body.style.paddingBottom = '1200px'; });
       for (const [w, h, kb] of [[375, 667, 360], [390, 844, 480]]) {
         await g[0].setViewportSize({ width: w, height: h });
         await g[0].evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+        const sh0 = await g[0].evaluate(() => document.documentElement.scrollHeight);
         await g[0].focus('#q');
         await sleep(700); // la animacion suave termina
         await waitFor(async () => Math.abs(await g[0].evaluate(() => document.getElementById('searchWrap').getBoundingClientRect().top)) <= 2, { timeout: 3000, msg: `buscador no sube arriba (${w}x${h}) ` + JSON.stringify(await g[0].evaluate(() => ({ top: document.getElementById('searchWrap').getBoundingClientRect().top, sy: scrollY, sh: document.documentElement.scrollHeight, ih: innerHeight }))) });
@@ -303,10 +302,12 @@ async function main() {
         await waitFor(async () => g[0].locator('#results').isHidden());
         expect((await g[0].inputValue('#q')) === '', 'buscador vacio');
         await g[0].evaluate(() => document.activeElement && document.activeElement.blur());
+        const sh1 = await g[0].evaluate(() => document.documentElement.scrollHeight);
+        expect(Math.abs(sh1 - sh0) <= 2, `el espacio extra no se quita (${w}x${h}): antes ${sh0}, despues ${sh1}`);
       }
     } finally {
       await g[0].setViewportSize(orig);
-      await g[0].evaluate(() => { document.body.style.paddingBottom = ''; window.scrollTo(0, 0); });
+      await g[0].evaluate(() => { window.scrollTo(0, 0); });
     }
   });
   await step('API: limite por invitado y duplicados', async () => {
