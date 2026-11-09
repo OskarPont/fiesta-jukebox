@@ -43,7 +43,7 @@ function render(st) {
   const active = st.party.active;
   const sum = st.admin?.showSummary && st.admin.summary;
   $('summary').hidden = !sum;
-  if (sum) renderSummary(st.admin.summary);
+  if (sum) { renderSummary(st.admin.summary); renderSumNow(active ? st.nowPlaying : null); }
   $('locked').hidden = true;
   $('idle').hidden = active || !!sum;
   $('stage').hidden = !active || !!sum;
@@ -107,6 +107,20 @@ function renderSummary(s) {
   if (!s.top.length) top.append(el('li', { class: 'muted-t', text: 'Sin likes todavía' }));
 }
 
+/** Barra "Ahora suena" dentro del resumen, para no perder de vista la musica. */
+function renderSumNow(np) {
+  $('sumNow').hidden = !np;
+  if (!np) return;
+  const img = $('sumNowImg');
+  if (np.image) { setSrc(img, np.image); img.hidden = false; } else img.hidden = true;
+  setText($('sumNowTitle'), np.name); setText($('sumNowArtist'), artistsText(np.artists));
+  setText($('sumNowKicker'), np.isPlaying ? 'Ahora suena' : 'En pausa');
+  $('sumNowEq').classList.toggle('paused', !np.isPlaying);
+  const by = $('sumNowBy');
+  by.hidden = !np.fromQueue;
+  if (np.fromQueue) { by.className = 'chip big accent'; setText(by, `Pedida por ${np.fromQueue.addedBy.name}`); }
+}
+
 function createItem() {
   return el('li', { class: 'n-item' },
     el('img', { alt: '' }),
@@ -127,10 +141,12 @@ function updateItem(li, q) {
 }
 
 function tick() {
-  if (!state?.nowPlaying) { $('barFill').style.transform = 'scaleX(0)'; setText($('tNow'), '0:00'); return; }
+  if (!state?.nowPlaying) { $('barFill').style.transform = 'scaleX(0)'; $('sumNowBar').style.transform = 'scaleX(0)'; setText($('tNow'), '0:00'); return; }
   const np = state.nowPlaying;
   const ms = liveProgress(np, state.timeScale || 1);
-  $('barFill').style.transform = `scaleX(${np.durationMs ? Math.min(1, ms / np.durationMs) : 0})`;
+  const frac = `scaleX(${np.durationMs ? Math.min(1, ms / np.durationMs) : 0})`;
+  $('barFill').style.transform = frac;
+  $('sumNowBar').style.transform = frac;
   setText($('tNow'), fmtTime(ms));
 }
 setInterval(tick, 250);
