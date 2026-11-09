@@ -208,12 +208,68 @@ export function safeStorage() {
   };
 }
 
+/**
+ * Tinte de la caratula: color dominante (vivo y legible sobre oscuro) en la variable CSS --tint como "r g b".
+ * La CDN de Spotify permite CORS; si una imagen no se puede leer, se queda el tinte neutro.
+ */
+const tintCache = new Map();
+let tintWant = null;
+const NEUTRAL_TINT = '74 74 84';
+function dominant(img) {
+  const c = document.createElement('canvas'); c.width = 24; c.height = 24;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(img, 0, 0, 24, 24);
+  const d = g.getImageData(0, 0, 24, 24).data;
+  let r = 0; let gr = 0; let b = 0; let w = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const R = d[i]; const G = d[i + 1]; const B = d[i + 2];
+    const mx = Math.max(R, G, B); const mn = Math.min(R, G, B);
+    const sat = mx ? (mx - mn) / mx : 0;
+    const wt = 0.15 + sat * sat * (mx / 255);           // pesan mas los pixeles con color
+    r += R * wt; gr += G * wt; b += B * wt; w += wt;
+  }
+  if (!w) return NEUTRAL_TINT;
+  let [h, s, l] = rgbToHsl(r / w, gr / w, b / w);
+  s = Math.min(0.85, s * 1.15); l = Math.min(0.5, Math.max(0.32, l));   // ni apagado ni chillon
+  return hslToRgb(h, s, l).map(Math.round).join(' ');
+}
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b); const mn = Math.min(r, g, b); const l = (mx + mn) / 2;
+  if (mx === mn) return [0, 0, l];
+  const dd = mx - mn; const s = l > 0.5 ? dd / (2 - mx - mn) : dd / (mx + mn);
+  const h = mx === r ? (g - b) / dd + (g < b ? 6 : 0) : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4;
+  return [h / 6, s, l];
+}
+function hslToRgb(h, s, l) {
+  const f = (n) => { const k = (n + h * 12) % 12; const a = s * Math.min(l, 1 - l); return 255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))); };
+  return [f(0), f(8), f(4)];
+}
+export function applyTint(url) {
+  const root = document.documentElement;
+  tintWant = url || null;
+  if (!url) { root.style.setProperty('--tint', NEUTRAL_TINT); return; }
+  if (tintCache.has(url)) { root.style.setProperty('--tint', tintCache.get(url)); return; }
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.decoding = 'async';
+  img.onload = () => {
+    let v = NEUTRAL_TINT;
+    try { v = dominant(img); } catch { /* imagen sin CORS: tinte neutro */ }
+    tintCache.set(url, v);
+    if (tintWant === url) root.style.setProperty('--tint', v);
+  };
+  img.onerror = () => { tintCache.set(url, NEUTRAL_TINT); };
+  img.src = url;
+}
+
 /** Fondo desenfocado con fundido entre caratulas. */
 export function makeBackground(host) {
   let current = null; let url = null;
   return (next) => {
     if (next === url) return;
     url = next;
+    applyTint(next);
     const layer = el('div', { class: 'bg-layer' });
     if (next) layer.style.backgroundImage = `url(${JSON.stringify(next)})`;
     host.append(layer);

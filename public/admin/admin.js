@@ -1,6 +1,6 @@
 import {
   api, ApiError, el, icon, setIcon, setText, setSrc, fmtTime, fmtAgo, artistsText, syncClock,
-  toast, connectEvents, reconcile, copyText, BASE,
+  toast, connectEvents, reconcile, copyText, BASE, applyTint,
 } from '../shared.js';
 
 const $ = (id) => document.getElementById(id);
@@ -281,6 +281,7 @@ cards.player = (() => {
       if (np) {
         setText(t, np.name); setText(sline, artistsText(np.artists));
         if (np.image) { setSrc(img, np.image); img.hidden = false; ph.hidden = true; } else { img.hidden = true; ph.hidden = false; }
+        applyTint(np.image || null);
         setText(by, np.fromQueue ? `Pedida por ${np.fromQueue.addedBy.name}` : np.filler === 'classic' ? 'Relleno: clásico de otras fiestas' : 'Relleno: playlist del anfitrión');
         likes.replaceChildren(...[likesLine({ queueLikes: np.queueLikes || 0, playLikes: np.playLikes || 0 })].filter(Boolean));
         const lbl = playBtn.querySelector('span'); setText(lbl, np.isPlaying ? 'Pausa' : 'Seguir');
@@ -290,6 +291,7 @@ cards.player = (() => {
         const lbl = playBtn.querySelector('span'); setText(lbl, 'Seguir');
         playBtn.replaceChildren(icon('play', 'sm'), lbl);
         playBtn.dataset.action = 'resume';
+        applyTint(null);
         setText(t, 'Nada suena'); setText(sline, ''); setText(by, ''); likes.replaceChildren(); img.hidden = true; ph.hidden = false; }
       const ios = !!s.player.isIphone;
       vol.disabled = ios || s.player.supportsVolume === false;
