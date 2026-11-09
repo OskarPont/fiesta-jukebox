@@ -406,7 +406,11 @@ async function main() {
     await row.locator('button', { hasText: 'Expulsar' }).click();
     await row.locator('button', { hasText: '¿Seguro?' }).first().click();
     await g[2].waitForSelector('#view-join:not([hidden])', { timeout: 4000 });
-    expect((await g[2].textContent('#joinError')).includes('sacado'), 'mensaje de expulsion');
+    // el aviso tiene que verse, no solo existir en el DOM (#1)
+    await g[2].waitForSelector('#joinNotice:not([hidden])', { timeout: 3000 });
+    expect(await g[2].locator('#joinNotice').isVisible(), 'aviso de expulsion visible');
+    expect((await g[2].textContent('#joinNotice')).includes('sacado'), 'mensaje de expulsion');
+    expect(await g[2].locator('#joinError').isHidden(), 'la expulsion no usa el estilo de error');
     // volver a entrar
     await g[2].fill('#pin', pin); await g[2].fill('#name', 'Carla'); await g[2].click('#joinBtn');
     await g[2].waitForSelector('#view-main:not([hidden])');
@@ -419,6 +423,13 @@ async function main() {
     expect(me.status === 403 && me.body.error === 'banned', 'baneado: ' + JSON.stringify(me));
     const rj = await api(gctx[1], 'POST', 'join', { pin, name: 'Marc' });
     expect(rj.status === 403, 'baneado no vuelve: ' + rj.status);
+    // al recargar, el baneado ve su aviso y no el falso "no hay fiesta" (#1)
+    await g[1].reload();
+    await g[1].waitForSelector('#joinNotice:not([hidden])', { timeout: 4000 });
+    expect((await g[1].textContent('#joinNotice')).includes('No puedes entrar'), 'aviso de baneo');
+    expect(await g[1].locator('#joinNotice').isVisible(), 'aviso de baneo visible');
+    expect(await g[1].locator('#joinClosed').isHidden(), 'sin el falso "no hay fiesta"');
+    expect(await g[1].locator('#joinForm').isHidden(), 'sin formulario de entrada');
     await waitFor(async () => (await admin.locator('#card-guests .ag-item', { hasText: 'Baneado' }).count()) === 1);
   });
   await step('admin: nuevo PIN mantiene a los invitados; con expulsar los saca', async () => {
@@ -572,8 +583,9 @@ async function main() {
     await admin.locator('#card-party button', { hasText: 'Terminar fiesta' }).click();
     await admin.locator('#card-party button', { hasText: 'Pulsa otra vez' }).click();
     await g[0].waitForSelector('#view-join:not([hidden])', { timeout: 5000 });
-    await waitFor(async () => (await g[0].textContent('#joinError')).includes('terminado'), { msg: 'mensaje de fin' });
+    await waitFor(async () => (await g[0].textContent('#joinNotice')).includes('terminado'), { msg: 'mensaje de fin' });
     await g[0].waitForSelector('#joinClosed:not([hidden])');
+    expect(await g[0].locator('#joinNotice').isVisible(), 'aviso de fin visible (#1)');
     await shot(g[0], '21-guest-party-ended');
     await shot(admin, '44-admin-party-stopped', { fullPage: true });
   });

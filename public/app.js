@@ -37,10 +37,17 @@ function setJoinError(msg) {
   if (msg) { const f = $('joinForm'); f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake'); }
 }
 
+/** Aviso de estado en la entrada (fin de fiesta, expulsion, sesion caducada, baneo). Fuera del formulario: se ve aunque no haya fiesta. */
+function setJoinNotice(msg) {
+  const n = $('joinNotice');
+  n.hidden = !msg; n.textContent = msg || '';
+}
+
 async function showJoin(notice) {
   clearInterval(waitTimer);
   show('join');
-  setJoinError(notice || '');
+  setJoinError('');
+  setJoinNotice(notice || '');
   let party = null;
   try { party = await api('party'); } catch { /* sin red */ }
   paintJoin(party);
@@ -483,7 +490,10 @@ async function init() {
   if (p) { $('pin').value = p.replace(/\D/g, '').slice(0, 4); history.replaceState(null, '', location.pathname); }
   const saved = store.get('fiesta.name'); if (saved) $('name').value = saved;
   let meRes = null;
-  try { meRes = await api('me'); } catch (e) { if (e instanceof ApiError && e.code === 'banned') { show('join'); paintJoin({ active: false }); setJoinError(e.message); return; } }
+  try { meRes = await api('me'); } catch (e) { if (e instanceof ApiError && e.code === 'banned') {
+    // la fiesta sigue en marcha: ni formulario ni "no hay fiesta", solo el aviso
+    show('join'); $('joinForm').hidden = true; $('joinClosed').hidden = true; setJoinNotice(e.message); return;
+  } }
   if (meRes) { me = meRes.guest; enterMain(); return; }
   await showJoin();
   if ($('pin').value.length === 4) $('name').focus(); else $('pin').focus({ preventScroll: true });
