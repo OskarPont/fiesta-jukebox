@@ -231,7 +231,7 @@ async function main() {
     await waitFor(async () => (await queueTitles(g[0])).length === 3);
   });
   await step('avisos: cada invitado ve solo los suyos y salen abajo (#2)', async () => {
-    for (const p of [g[0], g[1]]) await watchToasts(p);
+    for (const p of [g[0], g[1], admin]) await watchToasts(p);
     const D = T(12);
     await api(gctx[0], 'GET', `search?q=${encodeURIComponent(D.name.toLowerCase())}`);
     const r = await api(gctx[0], 'POST', 'queue', { uri: D.uri });
@@ -240,6 +240,7 @@ async function main() {
       await waitFor(async () => (await seenToasts(g[0])).some((t) => t.includes(D.name)), { timeout: 3000, msg: 'el que añade ve su aviso' });
       await sleep(800);
       expect(!(await seenToasts(g[1])).some((t) => t.includes(D.name)), 'otro invitado no ve el aviso de una canción ajena');
+      expect((await seenToasts(admin)).some((t) => t.includes(D.name)), 'el panel sigue viendo los avisos de canciones añadidas');
       // abajo y sin tapar el buscador
       const pos = await g[0].evaluate(() => { const h = document.getElementById('toasts').getBoundingClientRect(); return { bottom: h.bottom, vh: innerHeight }; });
       expect(pos.bottom > pos.vh * 0.85, 'avisos abajo: ' + JSON.stringify(pos));
@@ -495,6 +496,7 @@ async function main() {
     await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: 10, noRepeatMin: 0 });
     await mockCmd('speed', 30);
     await sleep(300);
+    for (const p of [g[0], g[2]]) await watchToasts(p);
     const seq = [T(20), T(21), T(22), T(23)];
     const ctxs = [gctx[0], gctx[2]];
     for (const [i, t] of seq.entries()) {
@@ -525,6 +527,11 @@ async function main() {
     const order = seen.filter((n) => seq.some((s) => s.name === n));
     expect(JSON.stringify(order) === JSON.stringify(seq.map((s) => s.name)), 'orden de reproduccion: ' + order.join(' > '));
     expect(fedMax > 0, 'fed aparecio');
+    // «Ahora suena» solo le llega al dueño de la canción (#2): T20 es de g[0] (Laura), T21 de g[2] (Carla)
+    const now0 = (await seenToasts(g[0])).filter((t) => t.startsWith('Ahora suena'));
+    const now2 = (await seenToasts(g[2])).filter((t) => t.startsWith('Ahora suena'));
+    expect(now0.some((t) => t.includes(seq[0].name)) && !now0.some((t) => t.includes(seq[1].name)), 'Laura ve solo «Ahora suena» de las suyas: ' + now0.join(' | '));
+    expect(now2.some((t) => t.includes(seq[1].name)) && !now2.some((t) => t.includes(seq[0].name)), 'Carla ve solo «Ahora suena» de las suyas: ' + now2.join(' | '));
     expect(fedRemaining !== null && fedRemaining <= 26000, 'fed al final de la cancion, quedaban ' + fedRemaining + ' ms');
     await waitFor(async () => (await admin.locator('#card-history .ah-item').count()) >= 3, { timeout: 8000, msg: 'historial se llena' });
     await shot(admin, '43-admin-history', { fullPage: false });
