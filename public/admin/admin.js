@@ -336,53 +336,79 @@ cards.settings = (() => {
       catch (e) { toast(e.message, 'error', 5000); }
     }, 400);
   }
-  function setRow(label, desc, control, outEl) {
-    return el('div', { class: 'set' }, el('div', { class: 'lab' }, el('span', { text: label }), outEl || null), desc ? el('div', { class: 'desc', text: desc }) : null, control);
+  const rows = {}; // clave -> fila
+  const vals = {}; // valor que manda (el del servidor, o el que acabas de elegir)
+  function setRow(key, label, desc, control, outEl) {
+    const descEl = desc ? el('div', { class: 'desc', id: `set-${key}-desc`, text: desc }) : null;
+    const row = el('div', { class: 'set' }, el('div', { class: 'lab' }, el('span', { text: label }), outEl || null), descEl, control);
+    rows[key] = row; return row;
   }
   function segSetting(key, label, desc, options) {
-    const s = seg(options, (v) => { s.set(v); queueSave(key, v); });
-    ctrls[key] = { set: (v) => { if (!(key in pending)) s.set(v); } };
-    return setRow(label, desc, s.el);
+    const s = seg(options, (v) => { s.set(v); vals[key] = v; queueSave(key, v); refreshVisibility(); });
+    ctrls[key] = { set: (v) => { if (!(key in pending)) { s.set(v); vals[key] = v; } } };
+    return setRow(key, label, desc, s.el);
   }
   function rangeSetting(key, label, desc, min, max, step, fmt) {
-    const out = el('output', { text: '' });
-    const r = el('input', { type: 'range', min: String(min), max: String(max), step: String(step), 'aria-label': label });
-    r.addEventListener('input', () => { out.textContent = fmt(Number(r.value)); });
+    const id = `set-${key}`;
+    const out = el('output', { for: id, text: '' });
+    const r = el('input', { type: 'range', id, min: String(min), max: String(max), step: String(step), 'aria-label': label, 'aria-describedby': desc ? `${id}-desc` : null });
+    const show = (v) => { const t = fmt(v); out.textContent = t; r.setAttribute('aria-valuetext', t); };
+    r.addEventListener('input', () => show(Number(r.value)));
     r.addEventListener('change', () => queueSave(key, Number(r.value)));
-    ctrls[key] = { set: (v) => { if (document.activeElement !== r && !(key in pending)) { r.value = String(v); out.textContent = fmt(v); } } };
-    return setRow(label, desc, r, out);
+    ctrls[key] = { set: (v) => { if (document.activeElement !== r && !(key in pending)) { r.value = String(v); show(v); } } };
+    return setRow(key, label, desc, r, out);
   }
   function switchSetting(key, label, desc) {
     const i = el('input', { type: 'checkbox', role: 'switch', 'aria-label': label });
     i.addEventListener('change', () => queueSave(key, i.checked));
     ctrls[key] = { set: (v) => { if (!(key in pending)) i.checked = !!v; } };
-    return el('div', { class: 'set inline' }, el('div', {}, el('div', { class: 'lab', text: label }), desc ? el('div', { class: 'desc', text: desc }) : null), el('label', { class: 'switch' }, i, el('i')));
+    const row = el('div', { class: 'set inline' }, el('div', {}, el('div', { class: 'lab', text: label }), desc ? el('div', { class: 'desc', text: desc }) : null), el('label', { class: 'switch' }, i, el('i')));
+    rows[key] = row; return row;
+  }
+  // Solo se ven los ajustes que aplican con lo elegido arriba.
+  function refreshVisibility() {
+    const vote = vals.skipMode === 'vote';
+    const direct = vals.pauseMode === 'direct' || vals.skipMode === 'direct';
+    for (const k of ['skipVotePct', 'skipVoteMin']) if (rows[k]) rows[k].hidden = !vote;
+    for (const k of ['controlCooldownSec', 'globalControlCooldownSec']) if (rows[k]) rows[k].hidden = !direct;
+    if (rows.classicsMinScore) rows.classicsMinScore.hidden = vals.fillerMode !== 'classics';
+  }
+  function group(id, title, open, ...kids) {
+    let isOpen = open;
+    try { const v = localStorage.getItem(`fiesta.set.${id}`); if (v === '1' || v === '0') isOpen = v === '1'; } catch { /* sin almacenamiento */ }
+    const d = el('details', { class: 'fold set-group', open: isOpen, dataset: { group: id } }, el('summary', { text: title }), el('div', { class: 'set-body' }, ...kids));
+    d.addEventListener('toggle', () => { try { localStorage.setItem(`fiesta.set.${id}`, d.open ? '1' : '0'); } catch { /* sin almacenamiento */ } });
+    return d;
   }
   let pauseRow = null;
   const pauseIosNote = el('p', { class: 'hint', hidden: true, text: 'Bloqueado con iPhone: los invitados no pueden pausar porque iOS duerme Spotify al pausar y no se podría reanudar.' });
   const sec = (n) => (n === 0 ? 'sin espera' : n >= 60 ? `${Math.floor(n / 60)} min${n % 60 ? ' ' + (n % 60) + ' s' : ''}` : `${n} s`);
   c.body.append(
-    pauseRow = segSetting('pauseMode', 'Pausar y reanudar', 'Quién puede pausar la música.', [['direct', 'Cualquiera'], ['admin', 'Solo yo']]),
-    pauseIosNote,
-    segSetting('skipMode', 'Saltar canción', 'Cómo se salta la canción que suena.', [['direct', 'Directo'], ['vote', 'Por votos'], ['admin', 'Solo yo']]),
-    rangeSetting('skipVotePct', 'Votos para saltar', 'Porcentaje de invitados activos que hace falta.', 1, 100, 1, (v) => `${v}%`),
-    rangeSetting('skipVoteMin', 'Mínimo de votos para saltar', null, 1, 20, 1, (v) => `${v}`),
-    rangeSetting('maxQueuedPerGuest', 'Canciones por invitado', 'Cuántas puede tener pendientes a la vez.', 1, 20, 1, (v) => `${v}`),
-    rangeSetting('addCooldownSec', 'Espera entre canciones añadidas', 'Por invitado.', 0, 300, 5, sec),
-    rangeSetting('controlCooldownSec', 'Espera para pausar o saltar', 'Por invitado, en modo directo.', 0, 600, 5, sec),
-    rangeSetting('globalControlCooldownSec', 'Espera global para pausar o saltar', 'Evita guerras de pausa entre invitados.', 0, 300, 1, sec),
-    segSetting('ordering', 'Orden de la cola', null, [['votes', 'Por votos'], ['fifo', 'Orden de llegada']]),
-    switchSetting('allowExplicit', 'Permitir canciones explícitas'),
-    rangeSetting('maxDurationMin', 'Duración máxima', 'Canciones más largas no se pueden añadir.', 1, 60, 1, (v) => `${v} min`),
-    rangeSetting('noRepeatMin', 'No repetir canciones', 'No se puede añadir algo que sonó hace menos de:', 0, 240, 5, (v) => (v === 0 ? 'se puede repetir' : `${v} min`)),
-    switchSetting('allowAdd', 'Cola abierta', 'Si la cierras, nadie puede añadir canciones.'),
-    segSetting('fillerMode', 'Cuando la cola se vacía', 'Qué suena si nadie ha pedido nada.', [['classics', 'Clásicos de mis fiestas'], ['host', 'Mi playlist de Spotify']]),
-    rangeSetting('classicsMinScore', 'Puntos para ser clásico', '1 punto por like, 0,5 por voto (sumando todas las fiestas).', 1, 20, 1, (v) => `${v} pts`),
-    switchSetting('classicsAutoUpdate', 'Actualizar "Clásicos de fiesta" al terminar', 'La playlist de Spotify se rehace sola al terminar cada fiesta.'));
+    group('cola', 'Cola', true,
+      switchSetting('allowAdd', 'Cola abierta', 'Si la cierras, nadie puede añadir canciones.'),
+      rangeSetting('maxQueuedPerGuest', 'Canciones por invitado', 'Cuántas puede tener pendientes a la vez.', 1, 20, 1, (v) => `${v}`),
+      rangeSetting('addCooldownSec', 'Espera entre canciones añadidas', 'Por invitado.', 0, 300, 5, sec),
+      segSetting('ordering', 'Orden de la cola', null, [['votes', 'Por votos'], ['fifo', 'Orden de llegada']]),
+      rangeSetting('maxDurationMin', 'Duración máxima', 'Canciones más largas no se pueden añadir.', 1, 60, 1, (v) => `${v} min`),
+      rangeSetting('noRepeatMin', 'No repetir canciones', 'No se puede añadir algo que sonó hace menos de:', 0, 240, 5, (v) => (v === 0 ? 'se puede repetir' : `${v} min`)),
+      switchSetting('allowExplicit', 'Permitir canciones explícitas')),
+    group('controles', 'Controles de los invitados', false,
+      pauseRow = segSetting('pauseMode', 'Pausar y reanudar', 'Quién puede pausar la música.', [['direct', 'Cualquiera'], ['admin', 'Solo yo']]),
+      pauseIosNote,
+      segSetting('skipMode', 'Saltar canción', 'Cómo se salta la canción que suena.', [['direct', 'Directo'], ['vote', 'Por votos'], ['admin', 'Solo yo']]),
+      rangeSetting('skipVotePct', 'Votos para saltar', 'Porcentaje de invitados activos que hace falta.', 1, 100, 1, (v) => `${v}%`),
+      rangeSetting('skipVoteMin', 'Mínimo de votos para saltar', null, 1, 20, 1, (v) => `${v}`),
+      rangeSetting('controlCooldownSec', 'Espera para pausar o saltar', 'Por invitado, en modo directo.', 0, 600, 5, sec),
+      rangeSetting('globalControlCooldownSec', 'Espera global para pausar o saltar', 'Evita guerras de pausa entre invitados.', 0, 300, 1, sec)),
+    group('relleno', 'Relleno y clásicos', false,
+      segSetting('fillerMode', 'Cuando la cola se vacía', 'Qué suena si nadie ha pedido nada.', [['classics', 'Clásicos de mis fiestas'], ['host', 'Mi playlist de Spotify']]),
+      rangeSetting('classicsMinScore', 'Puntos para ser clásico', '1 punto por like, 0,5 por voto (sumando todas las fiestas).', 1, 20, 1, (v) => `${v} pts`),
+      switchSetting('classicsAutoUpdate', 'Actualizar "Clásicos de fiesta" al terminar', 'La playlist de Spotify se rehace sola al terminar cada fiesta.')));
   return {
     root: c.root,
     update(s) {
       for (const [k, ctl] of Object.entries(ctrls)) ctl.set(s.settings[k]);
+      refreshVisibility();
       const ios = !!s.player.isIphone;
       pauseIosNote.hidden = !ios;
       if (pauseRow) { pauseRow.classList.toggle('locked', ios); for (const b of pauseRow.querySelectorAll('button')) b.disabled = ios; }
