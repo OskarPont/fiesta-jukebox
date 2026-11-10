@@ -55,7 +55,8 @@ function setJoinNotice(msg) {
 const GUEST_TOAST_KINDS = new Set(['skip', 'control']);
 function guestSeesToast(t) {
   if (!t || !t.text) return false;
-  if (t.kind === 'add' || t.kind === 'now') return !!me && t.by === me.id;
+  if (t.kind === 'add') return false; // el que añade ya recibe su confirmación con el puesto
+  if (t.kind === 'now') return !!me && t.by === me.id;
   return GUEST_TOAST_KINDS.has(t.kind);
 }
 
@@ -289,8 +290,11 @@ function renderQuota() {
 }
 
 // ---------- cola ----------
+let queuePos = new Map(); // qid -> puesto (1 = la siguiente)
+
 function renderQueue(st) {
   const list = $('queue');
+  queuePos = new Map(st.queue.map((q, i) => [q.qid, i + 1]));
   reconcile(list, st.queue, (q) => q.qid, createQueueItem, updateQueueItem);
   setText($('queueCount'), String(st.queue.length));
   $('queueEmpty').hidden = st.queue.length > 0;
@@ -325,7 +329,13 @@ function updateQueueItem(li, q) {
     title.append(q.name);
   }
   setText(li.querySelector('.q-sub'), artistsText(q.artists));
-  setText(li.querySelector('.q-by'), q.fed ? `Ya va a sonar · de ${q.addedBy.name}` : `de ${q.mine ? 'ti' : q.addedBy.name}`);
+  const by = li.querySelector('.q-by');
+  const pos = queuePos.get(q.qid) || 0;
+  const ownWaiting = q.mine && !q.fed;
+  by.classList.toggle('own', ownWaiting);
+  setText(by, q.fed ? `Ya va a sonar · de ${q.addedBy.name}`
+    : ownWaiting ? (pos === 1 ? 'Tu canción · la siguiente' : `Tu canción · n.º ${pos}`)
+    : `de ${q.addedBy.name}`);
   const vote = li.querySelector('.vote');
   vote.classList.toggle('on', q.voted);
   vote.disabled = q.mine || q.fed;
@@ -524,7 +534,9 @@ function updateResultButtons() {
 async function addTrack(t, btn) {
   btn.disabled = true;
   try {
-    await api('queue', { method: 'POST', body: { uri: t.uri } });
+    const r = await api('queue', { method: 'POST', body: { uri: t.uri } });
+    const n = r?.position || 0;
+    toast(n === 1 ? 'Añadida · suena la siguiente' : n > 1 ? `Añadida · va la ${n}.ª` : 'Añadida a la cola', 'ok');
     pendingAdd.set(t.trackId, Date.now());
     btn.classList.add('pop');
     updateResultButtons();

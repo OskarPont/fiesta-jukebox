@@ -231,22 +231,29 @@ async function main() {
     await waitFor(async () => (await queueTitles(g[0])).length === 3);
   });
   await step('avisos: cada invitado ve solo los suyos y salen abajo (#2)', async () => {
-    for (const p of [g[0], g[1], admin]) await watchToasts(p);
+    for (const p of [g[0], g[1], g[2], admin]) await watchToasts(p);
     const D = T(12);
-    await api(gctx[0], 'GET', `search?q=${encodeURIComponent(D.name.toLowerCase())}`);
-    const r = await api(gctx[0], 'POST', 'queue', { uri: D.uri });
-    expect(r.status === 200, 'añadir D: ' + JSON.stringify(r));
     try {
-      await waitFor(async () => (await seenToasts(g[0])).some((t) => t.includes(D.name)), { timeout: 3000, msg: 'el que añade ve su aviso' });
+      await guestAdd(g[0], D);
+      // #5: quien añade recibe su confirmación con el puesto (y es la única que ve)
+      const nD = clean(await queueTitles(g[0])).indexOf(D.name) + 1;
+      expect(nD > 0, 'D en la cola de g[0]');
+      const want = nD === 1 ? 'Añadida · suena la siguiente' : `Añadida · va la ${nD}.ª`;
+      await waitFor(async () => (await seenToasts(g[0])).includes(want), { timeout: 3000, msg: `el que añade ve «${want}»: ` + (await seenToasts(g[0])).join(' | ') });
       await sleep(800);
-      expect(!(await seenToasts(g[1])).some((t) => t.includes(D.name)), 'otro invitado no ve el aviso de una canción ajena');
+      for (const [n, p] of [['g1', g[1]], ['g0', g[0]], ['g2', g[2]]]) {
+        const seen = await seenToasts(p);
+        expect(!seen.some((t) => t.includes('añadió')), `${n} no ve «X añadió …» (#5): ` + seen.join(' | '));
+      }
+      expect(!(await seenToasts(g[1])).some((t) => t.includes(D.name) || t.startsWith('Añadida')), 'otro invitado no ve el aviso de una canción ajena');
       expect((await seenToasts(admin)).some((t) => t.includes(D.name)), 'el panel sigue viendo los avisos de canciones añadidas');
       // abajo y sin tapar el buscador
       const pos = await g[0].evaluate(() => { const h = document.getElementById('toasts').getBoundingClientRect(); return { bottom: h.bottom, vh: innerHeight }; });
       expect(pos.bottom > pos.vh * 0.85, 'avisos abajo: ' + JSON.stringify(pos));
     } finally {
       // dejar la cola como estaba aunque el paso falle, para no arrastrar a los siguientes
-      await api(gctx[0], 'DELETE', `queue/${encodeURIComponent(r.body.item.qid)}`);
+      const del = g[0].locator('#queue .q-item', { hasText: D.name }).locator('.del');
+      if (await del.count()) await del.click();
       await waitFor(async () => (await queueTitles(g[0])).length === 3);
     }
   });
@@ -262,7 +269,30 @@ async function main() {
     expect(vb.up && !vb.heart, 'el voto de la cola usa la flecha, no el corazon: ' + JSON.stringify(vb));
     expect(/^(Votar|Quitar mi voto)/.test(vb.label), 'aria-label del voto: ' + vb.label);
     expect((await voteBtn(g[2], C.name).getAttribute('aria-label')) === 'Votos a tu canción', 'aria-label de la propia canción');
+    // #5: cada invitado ve el puesto de sus canciones, y se actualiza en vivo
+    const own = [[g[0], A], [g[1], B], [g[2], C]];
+    const posText = async (page, t) => (await page.locator('#queue .q-item', { hasText: t.name }).locator('.q-by').textContent()).trim();
+    const expectedPos = async (page, t) => { const n = clean(await queueTitles(page)).indexOf(t.name) + 1; return n === 1 ? 'Tu canción · la siguiente' : `Tu canción · n.º ${n}`; };
+    for (const [pg, t] of own) expect((await posText(pg, t)) === (await expectedPos(pg, t)), `puesto de ${t.name}: ${await posText(pg, t)}`);
+    expect((await posText(g[2], C)) === 'Tu canción · la siguiente', 'C va la siguiente');
+    expect((await posText(g[1], A)).startsWith('de '), 'las ajenas siguen con «de Nombre»')
     await shot(g[0], '12-guest-main-queue', { fullPage: false });
+    try {
+      // B sube con dos votos (empata con C y es mas antigua): B, C, A
+      await voteBtn(g[0], B.name).click();
+      await voteBtn(g[2], B.name).click();
+      await waitFor(async () => clean(await queueTitles(g[1]))[0] === B.name, { timeout: 2500, msg: 'B no sube' });
+      await waitFor(async () => (await posText(g[1], B)) === 'Tu canción · la siguiente', { msg: 'B pasa a «la siguiente» en vivo' });
+      await waitFor(async () => (await posText(g[2], C)) === 'Tu canción · n.º 2', { msg: 'C baja al 2 en vivo' });
+      await waitFor(async () => (await posText(g[0], A)) === 'Tu canción · n.º 3', { msg: 'A baja al 3 en vivo' });
+    } finally {
+      for (const p of [g[0], g[2]]) {
+        const b = voteBtn(p, B.name);
+        if ((await b.getAttribute('aria-pressed')) === 'true') await b.click();
+      }
+      await waitFor(async () => clean(await queueTitles(g[2]))[0] === C.name, { timeout: 2500, msg: 'C vuelve arriba' });
+    }
+
     await shot(g[0], '13-guest-main-queue-full', { fullPage: true });
   });
   await step('invitado borra su propia cancion y desaparece para todos', async () => {

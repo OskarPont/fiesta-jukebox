@@ -208,7 +208,8 @@ export async function createApp(cfg = config, { logger = false } = {}) {
       const item = party.addTrack(g, req.body?.uri);
       hub.toast(`${g.name} añadió ${item.name}`, 'add', g.id);
       changed(); engine.poke();
-      return { item: { qid: item.qid, name: item.name } };
+      const position = party.orderedQueue().findIndex((i) => i.qid === item.qid) + 1;
+      return { item: { qid: item.qid, name: item.name }, position };
     });
 
     api.delete('/queue/:qid', async (req) => {
