@@ -167,4 +167,18 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: 70dvh; z-i
 .cover-like.on .ico { fill: currentColor; }
 .cover-like.pop .ico { animation: bump 0.45s var(--ease-out); }
 .cover-like[disabled] { cursor: default; opacity: 0.7; }
+.cover-like.own[disabled] { opacity: 1; color: var(--pink); border-color: color-mix(in srgb, var(--pink) 50%, transparent); background: rgba(40, 6, 20, 0.66); }
+.cover-like.own .ico { fill: currentColor; }
+
+/* suena una canción tuya: halo suave en la caratula */
+.np.mine .cover-wrap { animation: halo 2.4s ease-in-out infinite; }
+.np.mine .np-kicker { color: var(--accent); }
+@keyframes halo {
+  0%, 100% { box-shadow: 0 30px 60px -18px rgba(0, 0, 0, 0.75), 0 0 0 2px color-mix(in srgb, var(--accent) 70%, transparent), 0 0 18px 2px color-mix(in srgb, var(--accent) 28%, transparent); }
+  50% { box-shadow: 0 30px 60px -18px rgba(0, 0, 0, 0.75), 0 0 0 2px var(--accent), 0 0 34px 6px color-mix(in srgb, var(--accent) 52%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .np.mine .cover-wrap, .cover-like.pop .ico { animation: none; }
+  .np.mine .cover-wrap { box-shadow: 0 30px 60px -18px rgba(0, 0, 0, 0.75), 0 0 0 2px var(--accent), 0 0 22px 3px color-mix(in srgb, var(--accent) 38%, transparent); }
+}
 .cover-like:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
