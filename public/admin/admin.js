@@ -524,16 +524,63 @@ function attachDrag(li, list) {
 // ---------- Invitados ----------
 cards.guests = (() => {
   const c = card('Invitados', 'card-guests');
+  const norm = (t) => String(t || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+  let term = '';                  // el filtro sobrevive a las actualizaciones de estado
+  let lastGuests = [];
+  const search = el('input', { type: 'search', class: 'input', placeholder: 'Buscar invitado', 'aria-label': 'Buscar invitado', autocomplete: 'off', hidden: true });
   const list = el('ul', { class: 'ag' });
   const empty = el('p', { class: 'empty-note', text: 'Todavía no ha entrado nadie.' });
-  c.body.append(list, empty);
-  function create() {
-    const li = el('li', { class: 'ag-item' },
+  const noMatch = el('p', { class: 'empty-note', text: 'Ningún invitado se llama así', hidden: true });
+  c.body.append(search, list, empty, noMatch);
+  search.addEventListener('input', () => { term = search.value; render(); });
+
+  // un solo menu abierto a la vez; se cierra con Escape, clic fuera o al abrir otro
+  function closeMenus(except, refocus) {
+    for (const d of list.querySelectorAll('details.row-menu[open]')) {
+      if (d === except) continue;
+      d.open = false;
+      if (refocus) d.querySelector('summary').focus();
+    }
+  }
+  document.addEventListener('pointerdown', (ev) => { if (!ev.target.closest?.('details.row-menu')) closeMenus(null, false); });
+  list.addEventListener('keydown', (ev) => {
+    const d = ev.target.closest?.('details.row-menu[open]');
+    if (!d) return;
+    if (ev.key === 'Escape') { ev.preventDefault(); d.open = false; d.querySelector('summary').focus(); return; }
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      const items = [...d.querySelectorAll('[role=menuitem]')];
+      const i = items.indexOf(document.activeElement);
+      ev.preventDefault();
+      items[(i + (ev.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
+    }
+  });
+
+  function create(g) {
+    if (g.sep) return el('li', { class: 'ag-sep', 'aria-hidden': 'true' });
+    return el('li', { class: 'ag-item' },
       el('div', { class: 'ag-main' }, el('div', { class: 't' }, el('span', { class: 'dot-s' }), el('span', { class: 'nm ellipsis' })), el('div', { class: 's' })),
       el('div', { class: 'ag-btns' }));
-    return li;
+  }
+  function menuFor(li, g) {
+    const act = (path, msg) => async () => {
+      await api(`admin/guests/${encodeURIComponent(li.dataset.key)}/${path}`, { method: 'POST' });
+      closeMenus(null, false);
+      toast(msg, 'ok', 1800);
+    };
+    const kick = confirmButton('Expulsar', { cls: 'btn-sm', ico: 'logout', ask: '¿Seguro?', onclick: act('kick', 'Invitado expulsado') });
+    const ban = confirmButton('Banear', { cls: 'btn-sm btn-danger', ico: 'ban', ask: '¿Banear?', onclick: act('ban', 'Invitado baneado') });
+    kick.setAttribute('role', 'menuitem'); ban.setAttribute('role', 'menuitem');
+    const sum = el('summary', { class: 'btn btn-sm btn-ghost icon-only', 'aria-label': `Acciones para ${g.name}`, text: '⋯' });
+    const d = el('details', { class: 'row-menu' }, sum, el('div', { class: 'menu', role: 'menu' }, kick, ban));
+    d.addEventListener('toggle', () => {
+      if (!d.open) return;
+      closeMenus(d, false);
+      kick.focus();
+    });
+    return d;
   }
   function upd(li, g) {
+    if (g.sep) { li.textContent = g.label; return; }
     li.querySelector('.dot-s').classList.toggle('on', g.active && !g.banned);
     setText(li.querySelector('.nm'), g.name);
     setText(li.querySelector('.s'), g.banned ? 'Baneado' : `${g.added} añadidas · ${g.queued} en cola · ${g.active ? 'activo' : 'inactivo'}`);
@@ -541,20 +588,36 @@ cards.guests = (() => {
     const btns = li.querySelector('.ag-btns');
     if (btns.dataset.k !== k) {
       btns.dataset.k = k; btns.replaceChildren();
-      if (!g.banned) {
-        btns.append(
-          confirmButton('Expulsar', { cls: 'btn-sm', ico: 'logout', ask: '¿Seguro?', onclick: async () => { await api(`admin/guests/${encodeURIComponent(li.dataset.key)}/kick`, { method: 'POST' }); toast('Invitado expulsado', 'ok', 1800); } }),
-          confirmButton('Banear', { cls: 'btn-sm btn-danger', ico: 'ban', ask: '¿Banear?', onclick: async () => { await api(`admin/guests/${encodeURIComponent(li.dataset.key)}/ban`, { method: 'POST' }); toast('Invitado baneado', 'ok', 1800); } }));
-      }
+      if (!g.banned) btns.append(menuFor(li, g));
+    } else if (!g.banned) {
+      btns.querySelector('summary').setAttribute('aria-label', `Acciones para ${g.name}`);
     }
+  }
+  const byName = (a, b) => a.name.localeCompare(b.name, 'es');
+  function render() {
+    const gs = lastGuests;
+    const showSearch = gs.length > 10;
+    search.hidden = !showSearch;
+    if (!showSearch && term) { term = ''; search.value = ''; }
+    const q = norm(term.trim());
+    const vis = q ? gs.filter((g) => norm(g.name).includes(q)) : gs;
+    const act = vis.filter((g) => g.active && !g.banned).sort(byName);
+    const ina = vis.filter((g) => !g.active && !g.banned).sort(byName);
+    const ban = vis.filter((g) => g.banned).sort(byName);
+    const rows = [...act];
+    if (ina.length) rows.push({ id: 'sep-inactive', sep: true, label: `Inactivos (${ina.length})` }, ...ina);
+    if (ban.length) rows.push({ id: 'sep-banned', sep: true, label: `Baneados (${ban.length})` }, ...ban);
+    reconcile(list, rows, (g) => g.id, create, upd);
+    empty.hidden = gs.length > 0;
+    noMatch.hidden = !(gs.length > 0 && vis.length === 0);
+    list.hidden = vis.length === 0;
   }
   return {
     root: c.root,
     update(s) {
-      const gs = s.admin.guests;
-      reconcile(list, gs, (g) => g.id, create, upd);
-      empty.hidden = gs.length > 0; list.hidden = gs.length === 0;
-      c.sub.textContent = `${s.activeGuests} activos de ${gs.filter((g) => !g.banned).length}`;
+      lastGuests = s.admin.guests;
+      render();
+      c.sub.textContent = `${s.activeGuests} activos de ${lastGuests.filter((g) => !g.banned).length}`;
     },
   };
 })();

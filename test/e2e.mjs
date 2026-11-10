@@ -881,6 +881,7 @@ async function main() {
     expect(items.includes('Laura') && items.includes('Marc') && items.includes('Carla'), 'nombres: ' + items.join(','));
     // expulsar a Carla (g3)
     const row = admin.locator('#card-guests .ag-item', { hasText: 'Carla' });
+    await row.locator('summary').click();
     await row.locator('button', { hasText: 'Expulsar' }).click();
     await row.locator('button', { hasText: '¿Seguro?' }).first().click();
     await g[2].waitForSelector('#view-join:not([hidden])', { timeout: 4000 });
@@ -894,6 +895,7 @@ async function main() {
     await g[2].waitForSelector('#view-main:not([hidden])');
     // banear a Marc (g2)
     const row2 = admin.locator('#card-guests .ag-item', { hasText: 'Marc' });
+    await row2.locator('summary').click();
     await row2.locator('button', { hasText: 'Banear' }).click();
     await row2.locator('button', { hasText: '¿Banear?' }).click();
     await g[1].waitForSelector('#view-join:not([hidden])', { timeout: 4000 });
@@ -915,6 +917,87 @@ async function main() {
     expect(await g[1].locator('#joinClosed').isHidden(), 'sin el falso "no hay fiesta"');
     expect(await g[1].locator('#joinForm').isHidden(), 'sin formulario de entrada');
     await waitFor(async () => (await admin.locator('#card-guests .ag-item', { hasText: 'Baneado' }).count()) === 1);
+  });
+  await step('admin: invitados con menú por fila, buscador y orden (#11)', async () => {
+    const guestsApi = async () => (await api(adminCtx, 'GET', 'admin/status')).body.guests;
+    const search = admin.locator('#card-guests input[type=search]');
+    const added = [];
+    try {
+      const n0 = (await guestsApi()).length;
+      if (n0 <= 10) expect(await search.isHidden(), `sin buscador con ${n0} invitados`);
+      // menu por fila: sin botones sueltos hasta abrirlo
+      const row = admin.locator('#card-guests .ag-item', { hasText: 'Laura' }).first();
+      expect(await row.locator('.ag-btns > button').count() === 0, 'sin botones sueltos en la fila');
+      expect(!(await row.locator('button', { hasText: 'Expulsar' }).isVisible()), 'Expulsar oculto con el menú cerrado');
+      const sum = row.locator('summary');
+      expect((await sum.getAttribute('aria-label')).startsWith('Acciones para'), 'summary con aria-label');
+      await sum.click();
+      expect(await row.locator('button[role=menuitem]', { hasText: 'Expulsar' }).isVisible() && await row.locator('button[role=menuitem]', { hasText: 'Banear' }).isVisible(), 'el menú muestra las dos acciones');
+      await admin.keyboard.press('Escape');
+      expect(!(await row.locator('details.row-menu').evaluate((d) => d.open)), 'Escape cierra el menú');
+      expect(await sum.evaluate((s) => s === document.activeElement), 'el foco vuelve al summary');
+      // teclado: Enter abre y enfoca el primer elemento; Escape cierra
+      await sum.focus(); await admin.keyboard.press('Enter');
+      await waitFor(async () => (await row.locator('button[role=menuitem]').first().evaluate((b) => b === document.activeElement)), { msg: 'foco en el primer elemento del menú' });
+      await admin.keyboard.press('Escape');
+      expect(await sum.evaluate((s) => s === document.activeElement), 'Escape devuelve el foco con teclado');
+      // solo un menu abierto, y clic fuera cierra
+      const row3 = admin.locator('#card-guests .ag-item:not(:has(.ag-btns:empty))').nth(1);
+      await sum.click(); await row3.locator('summary').click();
+      await waitFor(async () => (await admin.locator('#card-guests details.row-menu[open]').count()) === 1, { msg: 'solo un menú abierto' });
+      await admin.locator('#card-guests header h2').click();
+      await waitFor(async () => (await admin.locator('#card-guests details.row-menu[open]').count()) === 0, { msg: 'clic fuera cierra el menú' });
+
+      // buscador: aparece con mas de 10
+      const names = ['Íñigo'];
+      while (names.length + n0 < 12) names.push(`Zeta ${names.length}`);
+      for (const name of names) {
+        const r = await fetch(`${BASE}/api/join`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '198.51.100.21' }, body: JSON.stringify({ pin, name }) });
+        expect(r.status === 200, `entrada ${name}: ${r.status}`);
+        added.push(name);
+      }
+      await search.waitFor({ state: 'visible', timeout: 5000 });
+      await search.fill('inigo');
+      await waitFor(async () => (await admin.locator('#card-guests .ag-item .nm').allTextContents()).join() === 'Íñigo', { msg: 'filtra «inigo» por Íñigo' });
+      await search.fill('INIGO');
+      await waitFor(async () => (await admin.locator('#card-guests .ag-item').count()) === 1, { msg: 'sin distinguir mayúsculas' });
+      await search.fill('qqqq');
+      await waitFor(async () => (await admin.locator('#card-guests .empty-note', { hasText: 'Ningún invitado se llama así' }).isVisible()), { msg: 'mensaje sin resultados' });
+      await search.fill('inigo');
+      await waitFor(async () => (await admin.locator('#card-guests .ag-item').count()) === 1);
+      await sleep(300);
+      expect(await search.inputValue() === 'inigo' && (await admin.locator('#card-guests .ag-item').count()) === 1, 'el filtro persiste tras actualizaciones de estado');
+      await search.fill('');
+
+      // orden: activos por nombre, inactivos, baneados (con separadores)
+      const gs = await guestsApi();
+      const nm = (a, b) => a.name.localeCompare(b.name, 'es');
+      const exp = [...gs.filter((x) => x.active && !x.banned).sort(nm), ...gs.filter((x) => !x.active && !x.banned).sort(nm), ...gs.filter((x) => x.banned).sort(nm)].map((x) => x.name);
+      await waitFor(async () => (await admin.locator('#card-guests .ag-item .nm').allTextContents()).join('|') === exp.join('|'), { msg: 'orden: ' + exp.join('|') });
+      const lis = await admin.locator('#card-guests .ag > li').evaluateAll((els) => els.map((e) => (e.classList.contains('ag-sep') ? '#' + e.textContent : e.querySelector('.nm').textContent)));
+      const nBan = gs.filter((x) => x.banned).length;
+      expect(nBan >= 1, 'hay un baneado del paso anterior');
+      const iSep = lis.indexOf(`#Baneados (${nBan})`);
+      expect(iSep >= 0 && lis.slice(iSep + 1).includes('Marc') && !lis.slice(0, iSep).includes('Marc'), 'Marc bajo «Baneados»: ' + lis.join(','));
+      expect(!lis.some((x) => x.startsWith('#Inactivos')) === (gs.filter((x) => !x.active && !x.banned).length === 0), 'separador Inactivos solo si hay inactivos');
+
+      // captura en movil con el menu abierto
+      await admin.setViewportSize({ width: 390, height: 844 });
+      const r2 = admin.locator('#card-guests .ag-item', { hasText: 'Zeta' }).first();
+      await r2.scrollIntoViewIfNeeded();
+      await r2.locator('summary').click();
+      await sleep(300);
+      const box = await r2.locator('.menu').boundingBox();
+      expect(box && box.x >= 0 && box.x + box.width <= 390, 'el menú cabe en 390 px: ' + JSON.stringify(box));
+      await shot(admin, '63-admin-invitados');
+      await admin.keyboard.press('Escape');
+    } finally {
+      await admin.setViewportSize({ width: 1280, height: 900 });
+      const gs = await guestsApi();
+      for (const x of gs.filter((y) => added.includes(y.name))) await api(adminCtx, 'POST', `admin/guests/${encodeURIComponent(x.id)}/kick`);
+      await admin.evaluate(() => scrollTo(0, 0));
+    }
+    await waitFor(async () => (await admin.locator('#card-guests .ag-item .nm', { hasText: /Íñigo|Zeta/ }).count()) === 0, { msg: 'extras expulsados' });
   });
   await step('admin: nuevo PIN mantiene a los invitados; con expulsar los saca', async () => {
     const old = pin;
