@@ -149,6 +149,10 @@ select.input { appearance: none; -webkit-appearance: none; padding-right: 40px; 
   animation: toast-in 0.36s var(--ease-out) both;
 }
 .toast.out { animation: toast-out 0.22s ease both; }
+.toast.has-action { display: flex; align-items: center; gap: 14px; pointer-events: auto; padding-right: 8px; }
+.toast-action { flex: none; min-height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-strong); background: rgba(255, 255, 255, 0.1); color: var(--text); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+.toast-action:hover { background: rgba(255, 255, 255, 0.18); }
+.toast-action:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .toast.error { color: #ffc9c9; border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
 .toast.ok, .toast.add { border-color: var(--line-strong); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-12px) scale(0.97); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }

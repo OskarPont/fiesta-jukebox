@@ -766,6 +766,50 @@ async function main() {
     await admin.locator('#card-queue .aq-item').nth(1).locator('.del').click();
     await waitFor(async () => (await admin.locator('#card-queue .aq-item').count()) === 3);
   });
+  await step('admin: mover la cola con teclado, deshacer al quitar y confirmaciones anunciadas (#12)', async () => {
+    const items = admin.locator('#card-queue .aq-item');
+    // orden «de la API»: lo que ve un invitado (el servidor es la fuente), más los votos que pinta el panel
+    const names = async () => clean(await queueTitles(g[1]));
+    const votesTags = async () => (await admin.locator('#card-queue .aq-item .votes-tag').allTextContents()).map((x) => x.trim());
+    const status = async () => ({ names: await names(), votes: await votesTags() });
+    const domTitles = async () => (await admin.locator('#card-queue .aq-item .t').allTextContents()).map((x) => x.trim());
+    await waitFor(async () => (await items.count()) >= 3);
+    const n0 = await names();
+    expect(n0.length >= 3 && (await items.count()) === n0.length, 'hacen falta 3 canciones para probar el teclado: ' + n0.join('|'));
+    const grip = (i) => items.nth(i).locator('.grip');
+    expect((await grip(1).evaluate((b) => b.tagName)) === 'BUTTON', 'el asa es un botón');
+    expect(/^Mover .+\. Flechas arriba y abajo/.test(await grip(1).getAttribute('aria-label')), 'etiqueta del asa');
+    // ArrowUp en la 2.ª
+    await grip(1).focus();
+    await admin.keyboard.press('ArrowUp');
+    await waitFor(async () => (await names())[0] === n0[1], { msg: 'ArrowUp no reordena en el servidor: ' + (await names()).join('|') });
+    await waitFor(async () => (await domTitles())[0].includes(n0[1]), { msg: 'DOM sin reordenar' });
+    await waitFor(async () => admin.evaluate(() => document.activeElement?.classList.contains('grip') && document.activeElement.closest('.aq-item') === document.querySelector('#card-queue .aq-item')), { msg: 'el foco no sigue al asa movida' });
+    await waitFor(async () => (await admin.locator('#queueLive').textContent()).includes(`${n0[1]}, puesto 1 de`), { msg: 'anuncio: ' + (await admin.locator('#queueLive').textContent()) });
+    // ArrowUp en el borde no hace nada
+    await admin.keyboard.press('ArrowUp');
+    await sleep(300);
+    expect((await names())[0] === n0[1], 'en el borde no se mueve');
+    // ArrowDown restaura
+    await admin.keyboard.press('ArrowDown');
+    await waitFor(async () => JSON.stringify(await names()) === JSON.stringify(n0), { msg: 'ArrowDown no restaura: ' + (await names()).join('|') });
+    await waitFor(async () => (await admin.locator('#queueLive').textContent()).includes(`${n0[1]}, puesto 2 de`));
+    // quitar la 2.ª y deshacer
+    const before = await status();
+    await items.nth(1).locator('.del').click();
+    await waitFor(async () => (await names()).length === before.names.length - 1);
+    const undo = admin.locator('#toasts .toast', { hasText: 'Quitada' }).last().locator('button', { hasText: 'Deshacer' });
+    await undo.waitFor({ timeout: 3000 });
+    await undo.click();
+    await waitFor(async () => JSON.stringify(await status()) === JSON.stringify(before), { msg: 'deshacer no restaura puesto y votos: ' + JSON.stringify(await status()) });
+    await waitFor(async () => (await admin.locator('#toasts .toast', { hasText: 'Restaurada' }).count()) === 1);
+    // confirmacion anunciada
+    const clear = admin.locator('#card-queue header button', { hasText: 'Vaciar cola' });
+    await clear.click();
+    await waitFor(async () => (await admin.locator('#srLive').textContent()).includes('¿Vaciar toda?'), { msg: 'confirmación no anunciada' });
+    await waitFor(async () => (await clear.textContent()).includes('Vaciar cola'), { timeout: 5000, msg: 'el botón no se desarma' });
+    expect((await names()).length === before.names.length, 'no se vació la cola');
+  });
   await step('admin: captura del panel completo (escritorio y movil)', async () => {
     await sleep(400);
     await shot(admin, '41-admin-desktop-full', { fullPage: true });

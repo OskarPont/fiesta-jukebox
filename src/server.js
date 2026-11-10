@@ -408,6 +408,7 @@ export async function createApp(cfg = config, { logger = false } = {}) {
       adm.post('/queue/:qid/top', async (req) => { party.adminTop(req.params.qid); changed(); return { ok: true }; });
       adm.post('/queue/reorder', async (req) => { party.adminReorder(req.body?.qids); changed(); return { ok: true }; });
       adm.delete('/queue/:qid', async (req) => { party.removeTrack(req.params.qid, null); changed(); return { ok: true }; });
+      adm.post('/queue/:qid/restore', async (req) => { party.restoreTrack(req.params.qid); changed(); return { ok: true }; });
       adm.post('/queue/clear', async () => { party.clearQueue(); changed(); return { ok: true }; });
 
       adm.post('/guests/:id/kick', async (req) => {
