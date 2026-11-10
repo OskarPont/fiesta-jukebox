@@ -472,17 +472,60 @@ async function main() {
     }
     await tv.waitForSelector('#stage:not([hidden])', { timeout: 4000 });
 
-    // #8: máscara solo si la lista no cabe (se fuerzan los casos tocando el DOM, sin tocar la cola)
-    const maskInfo = () => tv.evaluate(() => { const l = document.getElementById('next'); return { cls: l.classList.contains('overflow'), mask: getComputedStyle(l).maskImage || getComputedStyle(l).webkitMaskImage, sh: [...l.children].reduce((b, c) => (c.offsetParent ? Math.max(b, c.offsetTop + c.offsetHeight) : b), 0), ch: l.clientHeight }; });
-    await tv.evaluate(() => { document.querySelectorAll('#next .n-item').forEach((li, i) => { if (i > 0) li.style.display = 'none'; }); window.dispatchEvent(new Event('resize')); });
-    let m = await maskInfo();
-    expect(!m.cls && m.mask === 'none', 'con pocos elementos no debe haber máscara: ' + JSON.stringify(m));
-    await tv.evaluate(() => { document.querySelectorAll('#next .n-item').forEach((li) => { li.style.display = ''; }); const l = document.getElementById('next'); for (let i = 0; i < 12; i++) { const c = l.firstElementChild.cloneNode(true); c.dataset.clone = '1'; l.append(c); } window.dispatchEvent(new Event('resize')); });
-    m = await maskInfo();
-    expect(m.cls && m.mask !== 'none' && m.sh > m.ch + 1, 'con la lista desbordada debe haber máscara: ' + JSON.stringify(m));
-    await tv.evaluate(() => { document.querySelectorAll('#next [data-clone]').forEach((c) => c.remove()); window.dispatchEvent(new Event('resize')); });
-    m = await maskInfo();
-    expect(m.cls === (m.sh > m.ch + 1) && (m.cls || m.mask === 'none'), 'la clase overflow debe seguir a la medida real: ' + JSON.stringify(m));
+    // #8: «A continuación» muestra solo lo que cabe entero y cuenta el resto en «y N más» (1920x1080, cola real)
+    const listInfo = () => tv.evaluate(() => {
+      const l = document.getElementById('next'), mo = document.getElementById('nextMore'), lr = l.getBoundingClientRect();
+      const vis = [...l.children].filter((c) => !c.hidden && c.offsetParent);
+      const cut = vis.filter((c) => { const r = c.getBoundingClientRect(); return r.bottom - 1.5 > lr.bottom || r.top + 1.5 < lr.top; });
+      const mr = mo.getBoundingClientRect(), last = vis.length ? vis[vis.length - 1].getBoundingClientRect() : null;
+      return { total: l.children.length, vis: vis.length, cut: cut.length, cls: l.classList.contains('overflow'), mask: getComputedStyle(l).maskImage || getComputedStyle(l).webkitMaskImage, moreShown: !mo.hidden && mo.offsetParent !== null, moreTxt: mo.textContent, moreInView: !mo.hidden && mr.bottom <= innerHeight + 1 && mr.top >= lr.top, moreGap: last ? mr.top - last.bottom : null };
+    });
+    const checkList = async (what) => {
+      const len = (await mockState()).state.queue.length;
+      await waitFor(async () => (await tv.locator('#next .n-item').count()) === Math.min(6, len), { msg: `pantalla ${what}: elementos en el DOM` });
+      await sleep(900); // fin de la animación de entrada
+      const i = await listInfo(), j = JSON.stringify(i);
+      expect(i.vis >= 1 && i.cut === 0 && !i.cls && i.mask === 'none', `${what}: ningún elemento a medias y sin máscara: ${j}`);
+      const rest = len - i.vis;
+      if (rest > 0) {
+        expect(i.moreShown && i.moreInView && i.moreTxt === `y ${rest} más en la cola`, `${what}: «más» debe decir ${rest} (cola ${len}, visibles ${i.vis}): ${j}`);
+        expect(i.moreGap >= 0 && i.moreGap < 80, `${what}: «más» pegado al último elemento: ${j}`);
+      } else expect(!i.moreShown && i.vis === len, `${what}: con todo a la vista no hay «más»: ${j}`);
+      return { len, ...i };
+    };
+    const few = await checkList('cola corta');
+    // con sitio de sobra (ventana alta) caben todas: sin «más» y todo visible
+    await tv.setViewportSize({ width: 1920, height: 2400 }); await sleep(500);
+    const roomy = await checkList('cola corta con sitio de sobra');
+    expect(roomy.vis === Math.min(6, roomy.len) && !roomy.moreShown, 'con sitio de sobra se ven todas: ' + JSON.stringify(roomy));
+    await tv.setViewportSize({ width: 1920, height: 1080 }); await sleep(500);
+    const prevSettings = (await api(adminCtx, 'GET', 'admin/status')).body.settings;
+    const extra = [];
+    try {
+      await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: 10, addCooldownSec: 0, noRepeatMin: 0 });
+      let n = 0;
+      const pool = [34, 35, 36, 37, 38, 39, 40, 24, 25, 26, 27, 28, 29, 13, 14, 15];   // sin usar en el resto del test
+      while ((await mockState()).state.queue.length < 9 && n < pool.length) {
+        const t = T(pool[n]), c = gctx[n % 3]; n++;
+        await api(c, 'GET', `search?q=${encodeURIComponent(t.name.toLowerCase())}`);
+        const r = await api(c, 'POST', 'queue', { uri: t.uri });
+        expect(r.status === 200, 'añadir a la cola para llenar la lista: ' + JSON.stringify(r));
+        extra.push(r.body.item.qid);
+      }
+      const many = await checkList('cola larga');
+      expect(many.len > 6 && many.vis < 6 && many.vis >= 1, 'la cola larga debe pasarse de lo que cabe: ' + JSON.stringify(many));
+      // al reducir la ventana caben menos y el contador sube
+      await tv.setViewportSize({ width: 1280, height: 720 }); await sleep(500);
+      const small = await checkList('cola larga a 1280x720');
+      expect(small.vis <= many.vis, 'en una ventana menor no caben más: ' + JSON.stringify([small, many]));
+      await tv.setViewportSize({ width: 1920, height: 1080 }); await sleep(500);
+      await checkList('cola larga tras volver a 1920x1080');
+    } finally {
+      for (const qid of extra) await api(adminCtx, 'DELETE', `admin/queue/${qid}`);
+      await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: prevSettings.maxQueuedPerGuest, addCooldownSec: prevSettings.addCooldownSec, noRepeatMin: prevSettings.noRepeatMin });
+    }
+    const back = await checkList('cola de nuevo corta');
+    expect(back.len === few.len, 'la cola vuelve a su tamaño: ' + JSON.stringify([few.len, back.len]));
 
     // #8: todo encaja sin recortes a 1920x1080 y 1280x720
     for (const [w, h, name] of [[1920, 1080, '50-tv-1080'], [1280, 720, '51-tv-720']]) {

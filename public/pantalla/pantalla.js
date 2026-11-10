@@ -75,8 +75,7 @@ function render(st) {
   reconcile($('next'), q, (x) => x.qid, createItem, updateItem);
   $('nextEmpty').hidden = st.queue.length > 0;
   $('next').hidden = st.queue.length === 0;
-  const more = st.queue.length - q.length;
-  $('nextMore').hidden = more <= 0; setText($('nextMore'), `y ${more} más en la cola`);
+  queueTotal = st.queue.length;
 
   const pin = st.admin?.pin;
   setText($('qrPin'), pin || '');
@@ -99,13 +98,30 @@ function renderPlayerNote(st, active) {
   setText(n, msg); n.hidden = !msg;
 }
 
-/** La máscara de la lista solo se aplica si la lista no cabe y se corta. */
+let queueTotal = 0;
+
+/**
+ * «A continuación» muestra solo las canciones que caben enteras y cuenta el resto en «y N más».
+ * Se mide siempre con las 6 a la vista y la línea «más» reservada, y luego se ocultan las sobrantes.
+ */
 function updateOverflow() {
-  const list = $('next');
-  // layout puro (offsetTop/offsetHeight): scrollHeight cuenta el translateY de la animación de entrada
-  let bottom = 0;
-  for (const c of list.children) if (c.offsetParent) bottom = Math.max(bottom, c.offsetTop + c.offsetHeight);
-  list.classList.toggle('overflow', bottom > list.clientHeight + 1);
+  const list = $('next'), more = $('nextMore');
+  const items = [...list.children];
+  if (!queueTotal || !items.length) { more.hidden = true; list.classList.remove('overflow'); return; }
+  for (const li of items) li.hidden = false;
+  // layout puro (offsetTop/offsetHeight): scrollHeight/getBoundingClientRect cuentan el translateY de la animación de entrada
+  const fit = () => { let n = 0; for (const c of items) { if (c.offsetTop + c.offsetHeight <= list.clientHeight + 1) n++; else break; } return n; };
+  // con la línea «más» reservada (si no hiciera falta, quitarla solo deja más sitio)
+  more.hidden = false; setText(more, 'y 0 más en la cola');
+  let visible = fit();
+  if (visible >= items.length && queueTotal <= items.length) more.hidden = true;
+  // ni una cabe entera: se deja la primera bajo la máscara en vez de una lista vacía
+  const cut = visible === 0;
+  if (cut) visible = 1;
+  items.forEach((li, i) => { li.hidden = i >= visible; });
+  const rest = queueTotal - visible;
+  more.hidden = rest <= 0; if (rest > 0) setText(more, `y ${rest} más en la cola`);
+  list.classList.toggle('overflow', cut);
 }
 window.addEventListener('resize', updateOverflow);
 
