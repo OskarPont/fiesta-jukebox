@@ -424,33 +424,31 @@ export class Party {
   }
 
   /**
-   * Despedida que ve un invitado en el movil al terminar la fiesta (null si no procede).
-   * Solo datos publicos: nada de ids, PIN ni tokens, y las cifras personales son solo las de ese invitado.
+   * Despedida que ve un invitado en el movil al terminar la fiesta. Solo llega a invitados de esa fiesta:
+   * null si no procede o si el token no es de uno de ellos (GET /api/party es publico y el resumen lleva nombres).
+   * Nada de ids, PIN ni tokens, y las cifras personales son solo las de ese invitado.
    */
   farewellFor(token) {
     const p = this.s.party;
     if (!p || p.active || !p.endedAt || this.now() - p.endedAt > FAREWELL_TTL_MS) return null;
+    const gid = (token && p.farewell?.tokens?.[token]) || (token && this.s.guests[token]?.partyId === p.id ? this.s.guests[token].id : null);
+    if (!gid) return null;
     const hist = this.partyHistory();
     const sm = summarize(hist, p);
-    const gid = (token && p.farewell?.tokens?.[token]) || (token && this.s.guests[token]?.partyId === p.id ? this.s.guests[token].id : null);
-    let mine = null;
-    if (gid) {
-      const own = hist.filter((h) => h.addedBy?.id === gid);
-      const likes = own.reduce((n, h) => n + (h.playLikes || 0), 0);
-      const votes = own.reduce((n, h) => n + (h.queueLikes || 0), 0);
-      const top = own.filter((h) => (h.playLikes || 0) + (h.queueLikes || 0) > 0)
-        .sort((a, b) => (b.playLikes || 0) - (a.playLikes || 0) || (b.queueLikes || 0) - (a.queueLikes || 0) || a.playedAt - b.playedAt)[0];
-      mine = {
-        songs: own.length, likes, votes,
-        best: top ? { name: top.name, likes: top.playLikes || 0, votes: top.queueLikes || 0 } : null,
-      };
-    }
+    const own = hist.filter((h) => h.addedBy?.id === gid);
+    const likes = own.reduce((n, h) => n + (h.playLikes || 0), 0);
+    const votes = own.reduce((n, h) => n + (h.queueLikes || 0), 0);
+    const top = own.filter((h) => (h.playLikes || 0) + (h.queueLikes || 0) > 0)
+      .sort((a, b) => (b.playLikes || 0) - (a.playLikes || 0) || (b.queueLikes || 0) - (a.queueLikes || 0) || a.playedAt - b.playedAt)[0];
     const s1 = sm.songOfNight;
     return {
       name: p.name || null, endedAt: p.endedAt, songs: sm.songs,
       songOfNight: s1 && { name: s1.name, artists: s1.artists, image: s1.image, addedBy: s1.addedBy, likes: s1.playLikes, votes: s1.queueLikes },
       dj: sm.bestDj && { name: sm.bestDj.name, likes: sm.bestDj.likes, votes: sm.bestDj.votes },
-      mine,
+      mine: {
+        songs: own.length, likes, votes,
+        best: top ? { name: top.name, likes: top.playLikes || 0, votes: top.queueLikes || 0 } : null,
+      },
     };
   }
 

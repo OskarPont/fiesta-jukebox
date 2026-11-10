@@ -770,10 +770,12 @@ async function main() {
     await check('tras recargar');
     const noScroll = await g[0].evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
     expect(noScroll, 'sin scroll horizontal en la despedida');
-    // un navegador sin sesión no ve datos personales pero sí la despedida pública
+    // sin cookie (GET /api/party es público) no hay despedida: lleva nombres de invitados
     const anon = await (await fetch(`${BASE}/api/party`)).json();
-    expect(anon.farewell && anon.farewell.mine === null, 'despedida anónima sin «mine»');
+    expect(anon.farewell === null, 'sin cookie, /api/party no devuelve la despedida: ' + JSON.stringify(anon.farewell));
     expect(!JSON.stringify(anon).match(/"(id|pin|token)"/), 'sin ids ni PIN en /api/party');
+    const own = (await api(gctx[0], 'GET', 'party')).body;
+    expect(own.farewell && own.farewell.mine && own.farewell.songOfNight && own.farewell.dj, 'el invitado sí recibe songOfNight, dj y mine: ' + JSON.stringify(own.farewell));
   });
   await step('persistencia: reiniciar el servidor conserva fiesta, ajustes e historial', async () => {
     await api(adminCtx, 'POST', 'admin/party/start', { name: 'Segunda fiesta' });

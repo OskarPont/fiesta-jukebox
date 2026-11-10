@@ -53,9 +53,8 @@ test('despedida tras kickAll: cancion y DJ de la noche, y datos propios por toke
   // Pau no puso nada
   assert.deepEqual(party.farewellFor(p.token).mine, { songs: 0, likes: 0, votes: 0, best: null });
   // token desconocido o ausente
-  assert.equal(party.farewellFor('nope').mine, null);
-  assert.equal(party.farewellFor(undefined).mine, null);
-  assert.ok(party.farewellFor('nope').songOfNight);
+  assert.equal(party.farewellFor('nope'), null);
+  assert.equal(party.farewellFor(undefined), null);
 });
 
 test('despedida: best es null si sus canciones no tuvieron likes ni votos', () => {
