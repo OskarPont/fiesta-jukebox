@@ -188,15 +188,23 @@ function renderSumNow(np) {
 function createItem() {
   return el('li', { class: 'n-item' },
     el('img', { alt: '' }),
-    el('div', { class: 'n-main' }, el('div', { class: 'n-title ellipsis' }), el('div', { class: 'n-sub ellipsis' })),
+    el('div', { class: 'n-main' }, el('div', { class: 'n-title ellipsis' }), el('div', { class: 'n-sub' })),
     el('span', { class: 'n-votes' }));
 }
 function updateItem(li, q) {
   li.classList.toggle('fed', q.fed);
   setSrc(li.querySelector('img'), q.thumb || q.image);
   setText(li.querySelector('.n-title'), q.name);
-  // una sola línea: artistas · de quién; el que ya va a sonar lo dice en su lugar
-  setText(li.querySelector('.n-sub'), q.fed ? `Ya va a sonar · de ${q.addedBy.name}` : `${artistsText(q.artists)} · de ${q.addedBy.name}`);
+  // una sola línea: artistas (se recortan con «…») + « · de quién» (nunca se recorta);
+  // el que ya va a sonar lo dice en su lugar, en un solo texto corto
+  const sub = li.querySelector('.n-sub');
+  const mode = q.fed ? 'fed' : 'norm';
+  if (sub.dataset.mode !== mode) {
+    sub.dataset.mode = mode;
+    sub.replaceChildren(...(q.fed ? [el('span', { class: 'by' })] : [el('span', { class: 'art ellipsis' }), el('span', { class: 'by' })]));
+  }
+  if (q.fed) setText(sub.querySelector('.by'), `Ya va a sonar · de ${q.addedBy.name}`);
+  else { setText(sub.querySelector('.art'), artistsText(q.artists)); setText(sub.querySelector('.by'), ` · de ${q.addedBy.name}`); }
   const v = li.querySelector('.n-votes');
   v.classList.toggle('zero', q.votes === 0);
   const k = String(q.votes);

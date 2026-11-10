@@ -574,6 +574,21 @@ async function main() {
     const back = await checkList('cola de nuevo corta');
     expect(back.len === few.len, 'la cola vuelve a su tamaño: ' + JSON.stringify([few.len, back.len]));
 
+    // #24: « · de X» siempre entero aunque los artistas sean larguísimos
+    await tv.setViewportSize({ width: 1920, height: 1080 }); await sleep(500);
+    const longBy = await tv.evaluate(() => {
+      const li = [...document.querySelectorAll('#next > li')].find((x) => x.querySelector('.n-sub .art'));
+      if (!li) return null;
+      const sub = li.querySelector('.n-sub'), art = sub.querySelector('.art'), by = sub.querySelector('.by');
+      const normalBy = by.textContent;
+      art.textContent = 'Bad Bunny, Jhay Cortez, J Balvin, Rosalía, Ozuna, Anuel AA, Daddy Yankee, Karol G, Feid, Myke Towers';
+      const s = sub.getBoundingClientRect(), b = by.getBoundingClientRect();
+      return { normalBy, byFits: by.scrollWidth <= by.clientWidth + 1, byInside: b.right <= s.right + 1 && b.left >= s.left - 1, artCut: art.scrollWidth > art.clientWidth };
+    });
+    expect(longBy, '#24: hay un elemento normal en «A continuación»');
+    expect(/ · de \S/.test(longBy.normalBy), '#24: «de X» presente: ' + JSON.stringify(longBy.normalBy));
+    expect(longBy.byFits && longBy.byInside, '#24: «de X» entero con artistas largos: ' + JSON.stringify(longBy));
+    expect(longBy.artCut, '#24: los artistas largos se recortan con puntos suspensivos');
     // #8: todo encaja sin recortes a 1920x1080 y 1280x720
     for (const [w, h, name] of [[1920, 1080, '50-tv-1080'], [1280, 720, '51-tv-720']]) {
       await tv.setViewportSize({ width: w, height: h }); await sleep(500);
