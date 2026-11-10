@@ -336,6 +336,7 @@ async function main() {
       await g[0].fill('#q', X.name.toLowerCase());
       const retry = g[0].locator('#resultsList .res-empty button', { hasText: 'Reintentar' });
       await retry.waitFor({ timeout: 5000 });
+      expect((await retry.boundingBox()).height >= 44, '«Reintentar» mide al menos 44px');
       expect((await g[0].textContent('#resultsList .res-empty')).includes('Spotify no responde ahora mismo.'), 'muestra el mensaje de error');
       await g[0].unroute(pat);
       await retry.click();
