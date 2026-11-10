@@ -12,7 +12,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .left { display: flex; flex-direction: column; justify-content: center; gap: 4vh; min-width: 0; min-height: 0; }
 .cover-big { height: min(48vh, 34vw); width: min(48vh, 34vw); align-self: flex-start; border-radius: 1.6vh; overflow: hidden; box-shadow: 0 5vh 12vh -2vh rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06); position: relative; background: var(--surface-2); flex: none; }
 .cover-big img { width: 100%; height: 100%; object-fit: cover; display: block; animation: fade 1s var(--ease-out); }
-.cover-ph { position: absolute; inset: 0; display: grid; place-items: center; color: #55555e; background: linear-gradient(135deg, var(--surface-3), var(--surface)); }
+.cover-ph { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ghost); background: linear-gradient(135deg, var(--surface-3), var(--surface)); }
 .cover-ph .ico { width: 30%; height: 30%; stroke-width: 1.2; }
 .cover-big:has(img:not([hidden])) .cover-ph { display: none; }
 @keyframes fade { from { opacity: 0; transform: scale(1.025); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }

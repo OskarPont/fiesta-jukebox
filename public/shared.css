@@ -4,6 +4,9 @@
   --surface: #18181b;
   --surface-2: #1f1f23;
   --surface-3: #2a2a2f;
+  --surface-raised: #1c1c20;
+  --ghost: #55555e;
+  --pin-ph: #3d3d44;
   --line: rgba(255, 255, 255, 0.07);
   --line-strong: rgba(255, 255, 255, 0.13);
   --text: #f5f5f7;

@@ -178,13 +178,16 @@ async function main() {
     const probe = () => g[0].evaluate(() => {
       const glow = getComputedStyle(document.querySelector('.np.mine .cover-halo'), '::before');
       const wrap = getComputedStyle(document.querySelector('.np.mine .cover-wrap'));
-      return { halo: glow.animationName, state: glow.animationPlayState, glowShadow: glow.boxShadow, glowOpacity: glow.opacity, wrapAnim: wrap.animationName, ring: wrap.boxShadow, heart: getComputedStyle(document.querySelector('#btnLike .ico')).animationName };
+      return { halo: glow.animationName, state: glow.animationPlayState, ring: glow.boxShadow, ringOpacity: glow.opacity, wrapAnim: wrap.animationName, wrapShadow: wrap.boxShadow, heart: getComputedStyle(document.querySelector('#btnLike .ico')).animationName };
     });
     const isAccent = (v) => /255, 77, 133/.test(v) || v.includes('#ff4d85') || v.includes('oklab') || v.includes('color(');
     const anim = await probe();
     expect(anim.halo === 'none' && anim.heart === 'none', 'sin animación con movimiento reducido: ' + JSON.stringify(anim));
-    expect(isAccent(anim.ring) && / 2px/.test(anim.ring), 'el anillo estático sigue visible: ' + anim.ring);
-    expect(isAccent(anim.glowShadow) && Number(anim.glowOpacity) > 0, 'el resplandor sigue visible sin animar: ' + JSON.stringify(anim));
+    // anillo nítido: color de acento, 2px, sin desenfoque ni resplandor de color
+    expect(isAccent(anim.ring) && /(^|\s)2px$/.test(anim.ring.trim()), 'el anillo de acento de 2px existe: ' + anim.ring);
+    expect(/^[a-z]+\([^)]*\) 0px 0px 0px 2px$/.test(anim.ring.trim()), 'sin desenfoque ni sombra de color (blur 0, un solo anillo): ' + anim.ring);
+    expect(Number(anim.ringOpacity) === 1, 'sin animar el anillo se ve entero: ' + JSON.stringify(anim));
+    expect(!isAccent(anim.wrapShadow), 'la caratula conserva su sombra neutra, sin anillo de acento: ' + anim.wrapShadow);
     await g[0].emulateMedia({ reducedMotion: 'no-preference' });
     const norm = await probe();
     expect(norm.halo === 'halo', 'halo animado con movimiento normal: ' + JSON.stringify(norm));

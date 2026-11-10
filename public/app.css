@@ -17,7 +17,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: 70dvh; z-i
 .join-party strong { color: var(--text); font-weight: 700; }
 .join-form { display: flex; flex-direction: column; gap: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 22px; box-shadow: var(--shadow); }
 .input.pin { text-align: center; font-family: var(--font-display); font-size: 36px; font-weight: 700; letter-spacing: 0.42em; padding-left: 0.42em; min-height: 70px; font-variant-numeric: tabular-nums; border-radius: 14px; }
-.input.pin::placeholder { letter-spacing: 0.42em; color: #3d3d44; }
+.input.pin::placeholder { letter-spacing: 0.42em; color: var(--pin-ph); }
 .join-notice:empty { display: none; }
 .join-notice { text-align: center; font-size: 16px; font-weight: 600; line-height: 1.4; color: var(--text); background: var(--surface-2); border: 1px solid var(--line); border-radius: 16px; padding: 14px 18px; animation: rise 0.45s var(--ease-out) both; }
 .form-error { color: var(--danger); font-size: 14px; font-weight: 600; text-align: center; }
@@ -48,7 +48,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: 70dvh; z-i
 .top { display: flex; align-items: center; gap: 10px; padding: max(14px, env(safe-area-inset-top)) 0 12px; }
 .top .logo { font-size: 24px; }
 .party-name { flex: 1; min-width: 0; color: var(--muted); font-size: 14px; font-weight: 500; }
-.me-btn { display: inline-flex; align-items: center; gap: 6px; max-width: 46%; min-height: 36px; padding: 0 13px 0 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--line); color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.me-btn { display: inline-flex; align-items: center; gap: 6px; max-width: 46%; min-height: 44px; padding: 0 13px 0 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--line); color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 .me-btn:hover { background: rgba(255, 255, 255, 0.13); }
 .me-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .me-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -62,7 +62,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: 70dvh; z-i
 .cover-halo:has(.paused-badge:not([hidden])) { transform: scale(0.94); }
 .cover-wrap { position: relative; width: 100%; height: 100%; border-radius: 14px; overflow: hidden; box-shadow: 0 30px 60px -18px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06); background: var(--surface-2); }
 .cover { width: 100%; height: 100%; object-fit: cover; display: block; animation: fade 0.6s ease; }
-.cover-ph { position: absolute; inset: 0; display: grid; place-items: center; color: #55555e; background: linear-gradient(135deg, var(--surface-3), var(--surface)); }
+.cover-ph { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ghost); background: linear-gradient(135deg, var(--surface-3), var(--surface)); }
 .cover-ph .ico { width: 64px; height: 64px; stroke-width: 1.4; }
 .cover-wrap:has(.cover:not([hidden])) .cover-ph { display: none; }
 .paused-badge { position: absolute; left: 10px; bottom: 10px; padding: 6px 12px; border-radius: 999px; background: rgba(16, 16, 18, 0.72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-size: 13px; font-weight: 650; }
@@ -81,6 +81,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: 70dvh; z-i
 .ctl.skip.voted { background: color-mix(in srgb, var(--accent) 14%, var(--surface-2)); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
 .ctl.primary { background: var(--primary); color: var(--primary-ink); border-color: transparent; font-weight: 700; }
 .ctl.primary:hover { background: #fff; }
+.ctl.subtle { background: transparent; border: 1px solid var(--line-strong); color: var(--muted); }
+.ctl.subtle:hover { background: var(--surface-2); color: var(--text); }
 .ctl .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .note { text-align: center; font-size: 13px; color: var(--muted); margin-top: -6px; }
 
@@ -94,9 +96,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: 70dvh; z-i
 .search input { flex: 1; min-width: 0; height: 50px; border: 0; background: transparent; outline: none; font-size: 17px; }
 .search input::placeholder { color: var(--faint); }
 .search input::-webkit-search-cancel-button { display: none; }
-.results { position: absolute; left: 0; right: 0; top: calc(100% + 2px); max-height: min(68dvh, 560px); overflow-y: auto; overscroll-behavior: contain; background: #1c1c20; border: 1px solid var(--line-strong); border-radius: 20px; box-shadow: 0 30px 70px -10px rgba(0, 0, 0, 0.8); animation: pop 0.22s var(--ease-out) both; transform-origin: top center; }
+.results { position: absolute; left: 0; right: 0; top: calc(100% + 2px); max-height: min(68dvh, 560px); overflow-y: auto; overscroll-behavior: contain; background: var(--surface-raised); border: 1px solid var(--line-strong); border-radius: 20px; box-shadow: 0 30px 70px -10px rgba(0, 0, 0, 0.8); animation: pop 0.22s var(--ease-out) both; transform-origin: top center; }
 @keyframes pop { from { opacity: 0; transform: translateY(-6px) scale(0.985); } to { opacity: 1; transform: none; } }
-.results-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 6px 0 16px; font-size: 13px; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: #1c1c20; z-index: 1; }
+.results-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 6px 0 16px; font-size: 13px; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--surface-raised); z-index: 1; }
 .res-list { list-style: none; margin: 0; padding: 4px 6px 8px; }
 .res { display: flex; align-items: center; gap: 12px; padding: 8px 8px; border-radius: 12px; transition: background 0.12s; }
 .res:hover { background: rgba(255, 255, 255, 0.04); }
@@ -115,6 +117,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: 70dvh; z-i
 .add-btn .cd { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 @keyframes bump { 0% { transform: scale(0.7); } 55% { transform: scale(1.18); } 100% { transform: scale(1); } }
 .res-empty { padding: 22px 16px; text-align: center; color: var(--muted); }
+.res-empty p { margin: 0; }
+.res-empty .btn { margin-top: 12px; min-height: 44px; }
 .res-loading { display: flex; justify-content: center; padding: 24px; }
 
 .quota { font-size: 14px; color: var(--muted); padding: 2px 6px 16px; }
@@ -142,7 +146,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: 70dvh; z-i
 .vote[disabled] { cursor: default; opacity: 0.55; }
 .vote[disabled]:hover { background: transparent; color: var(--muted); }
 .empty { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 34px 16px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
-.empty .ico { width: 34px; height: 34px; color: #55555e; }
+.empty .ico { width: 34px; height: 34px; color: var(--ghost); }
 
 .history { margin-top: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 2px 14px; }
 .history summary { cursor: pointer; padding: 13px 0; font-weight: 650; list-style: none; display: flex; justify-content: space-between; align-items: center; border-radius: 8px; }
@@ -184,14 +188,13 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: 70dvh; z-i
 .cover-like.own[disabled] { opacity: 1; color: var(--pink); border-color: color-mix(in srgb, var(--pink) 50%, transparent); background: rgba(40, 6, 20, 0.66); }
 .cover-like.own .ico { fill: currentColor; }
 
-/* suena una canción tuya: anillo estático + resplandor que solo pulsa en opacidad (el resplandor vive fuera del recorte de .cover-wrap) */
-.np.mine .cover-wrap { box-shadow: 0 30px 60px -18px rgba(0, 0, 0, 0.75), 0 0 0 2px var(--accent); }
-.np.mine .cover-halo::before { content: ""; position: absolute; inset: 0; border-radius: 14px; box-shadow: 0 0 34px 6px color-mix(in srgb, var(--accent) 52%, transparent); pointer-events: none; will-change: opacity; animation: halo 2.4s ease-in-out infinite; }
+/* suena una canción tuya: anillo nítido de 2px que solo pulsa en opacidad (vive fuera del recorte de .cover-wrap) */
+.np.mine .cover-halo::before { content: ""; position: absolute; inset: 0; border-radius: 14px; box-shadow: 0 0 0 2px var(--accent); pointer-events: none; will-change: opacity; animation: halo 2.4s ease-in-out infinite; }
 .np.mine .cover-halo:has(.paused-badge:not([hidden]))::before { animation-play-state: paused; }
 .np.mine .np-kicker { color: var(--accent); }
-@keyframes halo { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+@keyframes halo { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .np.mine .cover-halo::before, .cover-like.pop .ico { animation: none; }
-  .np.mine .cover-halo::before { opacity: 0.75; will-change: auto; }
+  .np.mine .cover-halo::before { opacity: 1; will-change: auto; }
 }
 .cover-like:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

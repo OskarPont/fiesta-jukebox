@@ -276,6 +276,16 @@ async function main() {
     for (const [pg, t] of own) expect((await posText(pg, t)) === (await expectedPos(pg, t)), `puesto de ${t.name}: ${await posText(pg, t)}`);
     expect((await posText(g[2], C)) === 'Tu canción · la siguiente', 'C va la siguiente');
     expect((await posText(g[1], A)).startsWith('de '), 'las ajenas siguen con «de Nombre»')
+    // #13: botón del nombre cómodo de pulsar; «Pausa» pesa menos que «Saltar»
+    const meH = await g[0].evaluate(() => document.getElementById('meBtn').getBoundingClientRect().height);
+    expect(meH >= 44, '#meBtn mide al menos 44px: ' + meH);
+    const ctl = await g[0].evaluate(() => {
+      const f = (id) => { const b = document.getElementById(id); return { cls: b.className, bg: getComputedStyle(b).backgroundColor, h: b.getBoundingClientRect().height }; };
+      return { pause: f('btnPause'), skip: f('btnSkip') };
+    });
+    expect(/\bsubtle\b/.test(ctl.pause.cls) && !/\bsubtle\b/.test(ctl.skip.cls), 'sonando: Pausa es subtle y Saltar no: ' + JSON.stringify(ctl));
+    expect(ctl.pause.bg !== ctl.skip.bg, 'fondos distintos: ' + JSON.stringify(ctl));
+    expect(ctl.pause.h >= 44 && ctl.skip.h >= 44, 'ambos >= 44px: ' + JSON.stringify(ctl));
     await shot(g[0], '12-guest-main-queue', { fullPage: false });
     try {
       // B sube con dos votos (empata con C y es mas antigua): B, C, A
@@ -318,6 +328,26 @@ async function main() {
     await g[0].click('#qClear');
     await waitFor(async () => g[0].locator('#results').isHidden(), { msg: 'la X cierra los resultados' });
     expect((await g[0].inputValue('#q')) === '' && await g[0].locator('#qClear').isHidden(), 'la X borra el texto y se esconde');
+  });
+  await step('búsqueda fallida: «Reintentar» vuelve a buscar con el mismo término (#13)', async () => {
+    const pat = '**/api/search**';
+    await g[0].route(pat, (r) => r.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'unavailable', message: 'Spotify no responde ahora mismo.' }) }));
+    try {
+      await g[0].fill('#q', X.name.toLowerCase());
+      const retry = g[0].locator('#resultsList .res-empty button', { hasText: 'Reintentar' });
+      await retry.waitFor({ timeout: 5000 });
+      expect((await retry.boundingBox()).height >= 44, '«Reintentar» mide al menos 44px');
+      expect((await g[0].textContent('#resultsList .res-empty')).includes('Spotify no responde ahora mismo.'), 'muestra el mensaje de error');
+      await g[0].unroute(pat);
+      await retry.click();
+      await g[0].locator('#resultsList .res', { hasText: X.name }).first().waitFor({ timeout: 5000 });
+      expect(await g[0].locator('#results').isVisible(), 'los resultados siguen abiertos tras reintentar');
+      expect((await g[0].locator('#resultsList .res-empty').count()) === 0, 'el error desaparece');
+    } finally {
+      await g[0].unroute(pat).catch(() => {});
+    }
+    await g[0].click('#qClear');
+    await waitFor(async () => g[0].locator('#results').isHidden(), { msg: 'cerrar tras reintentar' });
   });
   await step('buscador: sube arriba al enfocar y los resultados caben sobre el teclado (#3)', async () => {
     const orig = g[0].viewportSize();
@@ -393,6 +423,8 @@ async function main() {
     const tv = await tvCtx.newPage(); watch(tv, 'pantalla');
     await tv.goto('pantalla/');
     await tv.waitForSelector('#stage:not([hidden])');
+    // #13: sin resumen todavía, las imágenes del resumen no pintan icono roto
+    expect(await tv.evaluate(() => document.getElementById('sumSongImg').hidden && document.getElementById('sumNowImg').hidden), 'imágenes del resumen ocultas por defecto');
     await waitFor(async () => (await tv.textContent('#npTitle')).includes(X.name));
     await waitFor(async () => (await tv.locator('#next .n-item').count()) >= 3);
     await tv.waitForFunction(() => document.querySelector('#qr')?.naturalWidth > 0);
