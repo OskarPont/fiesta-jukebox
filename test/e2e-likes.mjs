@@ -175,18 +175,40 @@ async function main() {
     expect(await g[0].locator('#btnLike').isDisabled(), 'sigue desactivado');
     // movimiento reducido: sin pulso del halo ni rebote del corazón
     await g[0].emulateMedia({ reducedMotion: 'reduce' });
-    const anim = await g[0].evaluate(() => ({
-      halo: getComputedStyle(document.querySelector('.np.mine .cover-wrap')).animationName,
-      heart: getComputedStyle(document.querySelector('#btnLike .ico')).animationName,
-      ring: getComputedStyle(document.querySelector('.np.mine .cover-wrap')).boxShadow,
-    }));
+    const probe = () => g[0].evaluate(() => {
+      const glow = getComputedStyle(document.querySelector('.np.mine .cover-halo'), '::before');
+      const wrap = getComputedStyle(document.querySelector('.np.mine .cover-wrap'));
+      return { halo: glow.animationName, state: glow.animationPlayState, glowShadow: glow.boxShadow, glowOpacity: glow.opacity, wrapAnim: wrap.animationName, ring: wrap.boxShadow, heart: getComputedStyle(document.querySelector('#btnLike .ico')).animationName };
+    });
+    const isAccent = (v) => /255, 77, 133/.test(v) || v.includes('#ff4d85') || v.includes('oklab') || v.includes('color(');
+    const anim = await probe();
     expect(anim.halo === 'none' && anim.heart === 'none', 'sin animación con movimiento reducido: ' + JSON.stringify(anim));
-    expect(/255, 77, 133/.test(anim.ring) || anim.ring.includes('#ff4d85') || anim.ring.includes('oklab') || anim.ring.includes('color('), 'el halo sigue visible como anillo estático: ' + anim.ring);
+    expect(isAccent(anim.ring) && / 2px/.test(anim.ring), 'el anillo estático sigue visible: ' + anim.ring);
+    expect(isAccent(anim.glowShadow) && Number(anim.glowOpacity) > 0, 'el resplandor sigue visible sin animar: ' + JSON.stringify(anim));
     await g[0].emulateMedia({ reducedMotion: 'no-preference' });
-    expect((await g[0].evaluate(() => getComputedStyle(document.querySelector('.np.mine .cover-wrap')).animationName)) === 'halo', 'halo animado con movimiento normal');
+    const norm = await probe();
+    expect(norm.halo === 'halo', 'halo animado con movimiento normal: ' + JSON.stringify(norm));
+    expect(norm.wrapAnim === 'none', 'la caratula en sí no se anima (sin box-shadow por fotograma)');
+    expect(norm.state === 'running', 'pulso en marcha mientras suena: ' + norm.state);
+    const kfProps = await g[0].evaluate(() => {
+      const props = new Set();
+      for (const sheet of document.styleSheets) for (const r of sheet.cssRules) if (r.type === CSSRule.KEYFRAMES_RULE && r.name === 'halo') for (const k of r.cssRules) for (const p of k.style) props.add(p);
+      return [...props];
+    });
+    expect(kfProps.length === 1 && kfProps[0] === 'opacity', 'los keyframes del halo solo tocan opacity: ' + kfProps.join(','));
     await g[0].evaluate(() => window.scrollTo(0, 0));
     await sleep(300);
     await shot(g[0], 'L0-guest-tu-cancion', { fullPage: false });
+    // en pausa el pulso se detiene; al reanudar vuelve
+    try {
+      expect((await api(adminCtx, 'POST', 'admin/control/pause')).status === 200, 'el anfitrión pausa');
+      await waitFor(async () => (await g[0].evaluate(() => !document.querySelector('#pausedBadge').hidden)), { msg: 'Laura ve En pausa' });
+      await waitFor(async () => (await probe()).state === 'paused', { msg: 'el pulso se detiene en pausa' });
+    } finally {
+      await api(adminCtx, 'POST', 'admin/control/resume');
+    }
+    await waitFor(async () => (await g[0].evaluate(() => document.querySelector('#pausedBadge').hidden)), { msg: 'Laura ve que sigue' });
+    await waitFor(async () => (await probe()).state === 'running', { msg: 'el pulso vuelve al reanudar' });
     const own = await api(gctx[0], 'POST', 'nowplaying/like');
     expect(own.status === 403, 'API rechaza like propio');
     // quitar y volver a poner
