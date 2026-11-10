@@ -438,6 +438,73 @@ async function main() {
     await shot(tv, '31-pantalla-laptop');
     await tv.setViewportSize({ width: 1280, height: 720 });
     await api(gctx[1], 'DELETE', `queue/${await tv.locator('#next .n-item').last().getAttribute('data-key')}`);
+    await waitFor(async () => (await tv.locator('#next .n-item').count()) === before, { msg: 'pantalla tras borrar' });
+
+    // #8: redundancia, nada bajo «A continuación» repite «A continuación ·»
+    expect(!(await tv.textContent('.next-wrap')).includes('A continuación ·'), 'texto «A continuación ·» repetido en la lista');
+
+    // #8: tamaño mínimo de 24 px a 1920x1080 (stage y resumen)
+    const smallText = (root) => tv.evaluate((sel) => {
+      const out = [];
+      const rootEl = document.querySelector(sel);
+      const path = (e) => { const p = []; for (; e && e !== rootEl && p.length < 4; e = e.parentElement) p.push(e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).join('.') : '')); return p.join(' < '); };
+      for (const e of rootEl.querySelectorAll('*')) {
+        if (![...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
+        const cs = getComputedStyle(e);
+        const r = e.getBoundingClientRect();
+        if (cs.display === 'none' || cs.visibility === 'hidden' || !r.width || !r.height) continue;
+        const px = parseFloat(cs.fontSize);
+        if (px < 24) out.push(`${path(e)} ${px}px «${e.textContent.trim().slice(0, 30)}»`);
+      }
+      return out;
+    }, root);
+    await tv.setViewportSize({ width: 1920, height: 1080 }); await sleep(400);
+    const small = await smallText('#stage');
+    expect(small.length === 0, 'texto por debajo de 24px en #stage: ' + small.join(' | '));
+    await api(adminCtx, 'POST', 'admin/summary/show', { on: true });
+    try {
+      await tv.waitForSelector('#summary:not([hidden])', { timeout: 4000 });
+      await sleep(900);
+      const smallSum = await smallText('#summary');
+      expect(smallSum.length === 0, 'texto por debajo de 24px en #summary: ' + smallSum.join(' | '));
+    } finally {
+      await api(adminCtx, 'POST', 'admin/summary/show', { on: false });
+    }
+    await tv.waitForSelector('#stage:not([hidden])', { timeout: 4000 });
+
+    // #8: máscara solo si la lista no cabe (se fuerzan los casos tocando el DOM, sin tocar la cola)
+    const maskInfo = () => tv.evaluate(() => { const l = document.getElementById('next'); return { cls: l.classList.contains('overflow'), mask: getComputedStyle(l).maskImage || getComputedStyle(l).webkitMaskImage, sh: [...l.children].reduce((b, c) => (c.offsetParent ? Math.max(b, c.offsetTop + c.offsetHeight) : b), 0), ch: l.clientHeight }; });
+    await tv.evaluate(() => { document.querySelectorAll('#next .n-item').forEach((li, i) => { if (i > 0) li.style.display = 'none'; }); window.dispatchEvent(new Event('resize')); });
+    let m = await maskInfo();
+    expect(!m.cls && m.mask === 'none', 'con pocos elementos no debe haber máscara: ' + JSON.stringify(m));
+    await tv.evaluate(() => { document.querySelectorAll('#next .n-item').forEach((li) => { li.style.display = ''; }); const l = document.getElementById('next'); for (let i = 0; i < 12; i++) { const c = l.firstElementChild.cloneNode(true); c.dataset.clone = '1'; l.append(c); } window.dispatchEvent(new Event('resize')); });
+    m = await maskInfo();
+    expect(m.cls && m.mask !== 'none' && m.sh > m.ch + 1, 'con la lista desbordada debe haber máscara: ' + JSON.stringify(m));
+    await tv.evaluate(() => { document.querySelectorAll('#next [data-clone]').forEach((c) => c.remove()); window.dispatchEvent(new Event('resize')); });
+    m = await maskInfo();
+    expect(m.cls === (m.sh > m.ch + 1) && (m.cls || m.mask === 'none'), 'la clase overflow debe seguir a la medida real: ' + JSON.stringify(m));
+
+    // #8: todo encaja sin recortes a 1920x1080 y 1280x720
+    for (const [w, h, name] of [[1920, 1080, '50-tv-1080'], [1280, 720, '51-tv-720']]) {
+      await tv.setViewportSize({ width: w, height: h }); await sleep(500);
+      const fit = await tv.evaluate(() => {
+        const iw = innerWidth, ih = innerHeight;
+        const off = [];
+        for (const sel of ['.left', '.right', '.cover-big', '.meta', '.next-wrap', '#next', '#qrBlock']) {
+          const r = document.querySelector(sel).getBoundingClientRect();
+          if (!(r.left >= -1 && r.top >= -1 && r.right <= iw + 1 && r.bottom <= ih + 1)) off.push(`${sel} fuera: ${[r.left, r.top, r.right, r.bottom].map(Math.round)}`);
+        }
+        const nw = document.querySelector('.next-wrap').getBoundingClientRect(), qr = document.getElementById('qrBlock').getBoundingClientRect();
+        const cover = document.querySelector('.cover-big').getBoundingClientRect();
+        return { off, nextOverQr: nw.bottom > qr.top + 1, sh: document.documentElement.scrollHeight - ih, sw: document.documentElement.scrollWidth - iw, coverMeta: cover.bottom > document.querySelector('.meta').getBoundingClientRect().top + 1 };
+      });
+      expect(fit.off.length === 0, `bloques fuera de la pantalla (${w}x${h}): ${fit.off.join(' | ')}`);
+      expect(!fit.nextOverQr, `la lista pisa el QR (${w}x${h})`);
+      expect(!fit.coverMeta, `la carátula pisa el texto (${w}x${h})`);
+      expect(fit.sh <= 0 && fit.sw <= 0, `hay scroll (${w}x${h}): ${JSON.stringify(fit)}`);
+      await shot(tv, name);
+    }
+    await tv.setViewportSize({ width: 1280, height: 720 });
     await tvCtx.close();
   });
   await step('pantalla sin sesion de admin pide ir al panel', async () => {
@@ -693,11 +760,19 @@ async function main() {
   });
   await step('sin dispositivo: banner para invitados y recuperacion', async () => {
     await api(adminCtx, 'POST', 'admin/queue/clear');
+    const tvCtx2 = await newCtx(browser, 'tv'); await tvCtx2.addCookies(await adminCtx.cookies());
+    const tv2 = await tvCtx2.newPage(); watch(tv2, 'pantalla-fallo');
+    await tv2.goto('pantalla/'); await tv2.waitForSelector('#stage:not([hidden])');
+    expect(await tv2.locator('#playerNote').isHidden(), '#8: sin fallos no hay aviso en la pantalla');
     await mockCmd('disconnect');
     await api(gctx[0], 'GET', `search?q=${encodeURIComponent(T(31).name.toLowerCase())}`);
     await api(gctx[0], 'POST', 'queue', { uri: T(31).uri });
     await waitFor(async () => (await g[0].locator('#banner').isVisible()) && (await g[0].textContent('#banner')).includes('parada'), { timeout: 6000, msg: 'banner sin dispositivo' });
     await shot(g[0], '20-guest-no-device');
+    await waitFor(async () => (await tv2.locator('#playerNote').isVisible()) && (await tv2.textContent('#playerNote')).trim() === 'La música está parada, avisando al anfitrión…', { timeout: 6000, msg: '#8: aviso de fallo en la pantalla' });
+    const pn = await tv2.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); const a = r('#playerNote'); return { px: parseFloat(getComputedStyle(document.getElementById('playerNote')).fontSize), overlapQr: ['#qrBlock', '.cover-big', '.meta', '.brand', '.next-wrap'].some((sel) => { const q = r(sel); return !(a.right <= q.left || a.left >= q.right || a.bottom <= q.top || a.top >= q.bottom); }), inside: a.left >= 0 && a.bottom <= innerHeight && a.right <= innerWidth }; });
+    expect(pn.px >= 24 && !pn.overlapQr && pn.inside, 'aviso mal colocado, pisa contenido o es pequeño: ' + JSON.stringify(pn));
+    await shot(tv2, '52-tv-no-device');
     expect((await admin.textContent('#alerts')).includes('dispositivo'), 'alerta en admin');
     await mockCmd('connect');
     await api(adminCtx, 'POST', 'admin/device', { deviceId: 'mockdev1' });
@@ -705,6 +780,8 @@ async function main() {
     await api(adminCtx, 'POST', 'admin/control/skip');
     await waitFor(async () => (await mockState()).mock.current === T(31).name, { timeout: 8000, msg: 'se recupera y suena la cancion' });
     await waitFor(async () => g[0].locator('#banner').isHidden());
+    await waitFor(async () => tv2.locator('#playerNote').isHidden(), { timeout: 6000, msg: '#8: el aviso desaparece al recuperarse' });
+    await tvCtx2.close();
   });
   await step('429 inyectado: no se cae, avisa y se recupera', async () => {
     await mockCmd('rate429', 4);

@@ -41,6 +41,7 @@ setInterval(jiggle, 3 * 60 * 1000);
 function render(st) {
   state = st; syncClock(st.serverNow);
   const active = st.party.active;
+  renderPlayerNote(st, active);
   const sum = st.admin?.showSummary && st.admin.summary;
   $('summary').hidden = !sum;
   if (sum) { renderSummary(st.admin.summary); renderSumNow(active ? st.nowPlaying : null); }
@@ -82,8 +83,31 @@ function render(st) {
   setText($('qrUrl'), st.publicHost);
   const qr = $('qr'); const want = `../api/admin/qr.svg?pin=${pin}`;
   if (pin && qr.dataset.w !== want) { qr.dataset.w = want; qr.src = want; }
+  updateOverflow();
   tick();
 }
+
+/** Aviso discreto cuando el reproductor falla; mismas frases que ven los invitados. */
+function renderPlayerNote(st, active) {
+  const status = st.player?.status;
+  let msg = '';
+  if (active) {
+    if (status === 'rate_limited') msg = 'Spotify va saturado, un momento…';
+    else if (['no_device', 'disconnected', 'not_configured', 'premium_required'].includes(status)) msg = 'La música está parada, avisando al anfitrión…';
+  }
+  const n = $('playerNote');
+  setText(n, msg); n.hidden = !msg;
+}
+
+/** La máscara de la lista solo se aplica si la lista no cabe y se corta. */
+function updateOverflow() {
+  const list = $('next');
+  // layout puro (offsetTop/offsetHeight): scrollHeight cuenta el translateY de la animación de entrada
+  let bottom = 0;
+  for (const c of list.children) if (c.offsetParent) bottom = Math.max(bottom, c.offsetTop + c.offsetHeight);
+  list.classList.toggle('overflow', bottom > list.clientHeight + 1);
+}
+window.addEventListener('resize', updateOverflow);
 
 function renderSummary(s) {
   const n = (x) => String(x ?? 0);
