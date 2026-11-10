@@ -554,7 +554,7 @@ cards.history = (() => {
 
   // resumen
   const sumBox = el('div', { class: 'sum' });
-  const showBtn = button('Mostrar resumen en la pantalla', { ico: 'expand', cls: 'btn-sm', onclick: async () => {
+  const showBtn = button('Añadir resumen a la pantalla', { ico: 'expand', cls: 'btn-sm', onclick: async () => {
     await api('admin/summary/show', { method: 'POST', body: { on: !st.admin.showSummary } });
   } });
   const showHint = el('p', { class: 'hint', text: 'La pantalla enseña el resumen de la fiesta actual (o de la última si ya terminó).' });
@@ -685,7 +685,7 @@ cards.history = (() => {
     reconcile(list, hs, (h) => `${h.playedAt}-${h.trackId}`, create, upd);
     empty.hidden = hs.length > 0; list.hidden = hs.length === 0;
     c.sub.textContent = hs.length ? plural(hs.length, 'canción', 'canciones') : '';
-    setText(showBtn.querySelector('span'), a.showSummary ? 'Quitar resumen de la pantalla' : 'Mostrar resumen en la pantalla');
+    setText(showBtn.querySelector('span'), a.showSummary ? 'Quitar resumen de la pantalla' : 'Añadir resumen a la pantalla');
     showBtn.classList.toggle('btn-primary', !!a.showSummary);
     showBtn.disabled = !a.summary;
     if (document.activeElement !== nameIn && !nameIn.value) nameIn.placeholder = `${pname || 'Fiesta'} (${new Date().toLocaleDateString('es-ES')})`;

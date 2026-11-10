@@ -287,17 +287,36 @@ async function main() {
     await waitFor(async () => (await tv.textContent('#npLikes')).trim() !== '' || true);
     await sleep(1000);
     await shot(tv, 'L4-pantalla-likes');
-    await admin.click('#card-history button:has-text("Mostrar resumen en la pantalla")');
-    await tv.waitForSelector('#summary:not([hidden])', { timeout: 4000 });
-    expect((await tv.textContent('#sumSongName')).includes(A.name), 'canción de la noche en TV');
-    const tvSum = await tv.textContent('#summary');
-    expect(tvSum.includes('DJ de la noche') && !tvSum.includes('Mejor DJ') && !tvSum.includes('Más canciones'), 'textos del resumen en TV: ' + tvSum);
-    expect(/^\d+ likes? · \d+ votos?$/.test((await tv.textContent('#sumDjMeta')).trim()), 'meta del DJ en TV: ' + (await tv.textContent('#sumDjMeta')));
+    await admin.click('#card-history button:has-text("Añadir resumen a la pantalla")');
+    // #24: con la fiesta en marcha el resumen es una franja bajo la vista normal
+    await tv.waitForSelector('#sumBand:not([hidden])', { timeout: 4000 });
+    expect(await tv.evaluate(() => document.getElementById('summary').hidden && !document.getElementById('stage').hidden), '#24: franja y no resumen a pantalla completa');
+    expect((await tv.textContent('#sbSongName')).includes(A.name), 'canción de la noche en la franja');
+    const tvSum = await tv.textContent('#sumBand');
+    expect(tvSum.includes('Canción de la noche') && tvSum.includes('DJ de la noche') && tvSum.includes('Top 3') && !tvSum.includes('Mejor DJ') && !tvSum.includes('Más canciones'), 'textos de la franja en TV: ' + tvSum);
+    expect(/^\d+ likes? · \d+ votos?$/.test((await tv.textContent('#sbDjMeta')).trim()), 'meta del DJ en TV: ' + (await tv.textContent('#sbDjMeta')));
+    expect(/^\d+ likes? · \d+ votos?$/.test((await tv.textContent('#sbSongMeta')).trim()), 'meta de la canción en TV: ' + (await tv.textContent('#sbSongMeta')));
+    expect((await tv.locator('#sbTop li').count()) <= 3, 'top 3 como mucho');
     expect((await tv.locator('#sumActive').count()) === 0, 'sin bloque sumActive');
+    expect((await admin.textContent('#card-history')).includes('Quitar resumen de la pantalla'), 'el botón del admin pasa a «Quitar resumen de la pantalla»');
     await sleep(1200);
+    for (const [w, h] of [[1920, 1080], [1280, 720]]) {
+      await tv.setViewportSize({ width: w, height: h }); await sleep(500);
+      const b = await tv.evaluate(() => {
+        const sels = ['.cover-big', '.meta', '.brand', '.next-wrap', '#qrBlock', '#sumBand'];
+        const box = (sel) => document.querySelector(sel).getBoundingClientRect();
+        const vis = (sel) => { const e = document.querySelector(sel); return !e.hidden && !!e.offsetParent && e.getBoundingClientRect().width > 0; };
+        const overlaps = [];
+        for (let i = 0; i < sels.length; i++) for (let j = i + 1; j < sels.length; j++) { const a = box(sels[i]), c = box(sels[j]); if (!(a.right <= c.left + 1 || a.left >= c.right - 1 || a.bottom <= c.top + 1 || a.top >= c.bottom - 1)) overlaps.push(sels[i] + ' x ' + sels[j]); }
+        const off = sels.filter((sel) => { const r = box(sel); return !(r.left >= -1 && r.top >= -1 && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1); });
+        return { shown: ['#npTitle', '#qrPin', '#sbSongName', '#sbDj'].every(vis), overlaps, off, sh: document.documentElement.scrollHeight - innerHeight, sw: document.documentElement.scrollWidth - innerWidth };
+      });
+      expect(b.shown && !b.overlaps.length && !b.off.length && b.sh <= 0 && b.sw <= 0, `#24: franja con canción y DJ sin pisar nada (${w}x${h}): ` + JSON.stringify(b));
+    }
+    await tv.setViewportSize({ width: 1920, height: 1080 }); await sleep(500);
     await shot(tv, 'L5-pantalla-resumen');
     await admin.click('#card-history button:has-text("Quitar resumen de la pantalla")');
-    await tv.waitForSelector('#summary[hidden]', { state: 'attached', timeout: 4000 });
+    await tv.waitForSelector('#sumBand[hidden]', { state: 'attached', timeout: 4000 });
     await tvCtx.close();
   });
 
@@ -308,6 +327,20 @@ async function main() {
     const pl = (await mockState()).mock.playlists.find((p) => p.name === 'Clásicos de fiesta');
     expect(pl.uris.length === 1 && pl.uris[0] === A.uri, 'solo A llega a 2 puntos: ' + JSON.stringify(pl.uris));
     await waitFor(async () => (await admin.textContent('#card-classics')).includes(A.name), { msg: 'tarjeta clásicos' });
+    // #24: terminada la fiesta con el resumen puesto: resumen a pantalla completa, sin QR ni PIN
+    const tvCtx3 = await newCtx(browser, 'tv'); await tvCtx3.addCookies(await adminCtx.cookies());
+    const tv3 = await tvCtx3.newPage(); watch(tv3, 'pantalla-fin');
+    await api(adminCtx, 'POST', 'admin/summary/show', { on: true });
+    try {
+      await tv3.goto('pantalla/');
+      await tv3.waitForSelector('#summary:not([hidden])', { timeout: 6000 });
+      const e = await tv3.evaluate(() => ({ stage: document.getElementById('stage').hidden, qr: document.getElementById('qrBlock').offsetParent === null, band: document.getElementById('sumBand').offsetParent === null }));
+      expect(e.stage && e.qr && e.band, '#24: fiesta terminada con resumen: pantalla completa y sin QR: ' + JSON.stringify(e));
+      await tv3.waitForSelector('#sumSongName:not(:empty)', { timeout: 4000 });
+    } finally {
+      await api(adminCtx, 'POST', 'admin/summary/show', { on: false });
+      await tvCtx3.close();
+    }
     expect((await admin.textContent('#card-classics')).includes('2 pts'), 'puntos');
   });
   await step('actualizar clásicos reutiliza la misma playlist', async () => {
