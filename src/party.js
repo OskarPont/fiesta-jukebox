@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS } from './store.js';
+import { summarize } from './library.js';
 import { cleanName, randId, randPin, randToken, safeEqual } from './util.js';
 
 export class PartyError extends Error {
@@ -11,6 +12,7 @@ export class PartyError extends Error {
 const ACTIVE_MS = 10 * 60 * 1000;
 const KNOWN_TTL_MS = 60 * 60 * 1000;
 const HISTORY_MAX = 500;
+const FAREWELL_TTL_MS = 24 * 60 * 60 * 1000;
 
 const SETTING_RULES = {
   pauseMode: { type: 'enum', values: ['direct', 'admin'] },
@@ -110,6 +112,10 @@ export class Party {
     if (!this.s.party) return null;
     this.s.party.active = false;
     this.s.party.endedAt = this.now();
+    // token -> id de invitado, para que su despedida sobreviva a la expulsion (los tokens solo se guardan en el servidor)
+    const tokens = {};
+    for (const [token, g] of Object.entries(this.s.guests)) if (g.partyId === this.s.party.id) tokens[token] = g.id;
+    this.s.party.farewell = { tokens };
     if (kickAll) this.s.guests = {};
     this.s.queue = this.s.queue.filter((i) => i.fed);
     this.dirty();
@@ -415,6 +421,37 @@ export class Party {
     const p = this.s.party;
     if (!p) return [];
     return this.s.history.filter((h) => h.partyId === p.id || (!h.partyId && h.playedAt >= p.startedAt && (!p.endedAt || h.playedAt <= p.endedAt)));
+  }
+
+  /**
+   * Despedida que ve un invitado en el movil al terminar la fiesta (null si no procede).
+   * Solo datos publicos: nada de ids, PIN ni tokens, y las cifras personales son solo las de ese invitado.
+   */
+  farewellFor(token) {
+    const p = this.s.party;
+    if (!p || p.active || !p.endedAt || this.now() - p.endedAt > FAREWELL_TTL_MS) return null;
+    const hist = this.partyHistory();
+    const sm = summarize(hist, p);
+    const gid = (token && p.farewell?.tokens?.[token]) || (token && this.s.guests[token]?.partyId === p.id ? this.s.guests[token].id : null);
+    let mine = null;
+    if (gid) {
+      const own = hist.filter((h) => h.addedBy?.id === gid);
+      const likes = own.reduce((n, h) => n + (h.playLikes || 0), 0);
+      const votes = own.reduce((n, h) => n + (h.queueLikes || 0), 0);
+      const top = own.filter((h) => (h.playLikes || 0) + (h.queueLikes || 0) > 0)
+        .sort((a, b) => (b.playLikes || 0) - (a.playLikes || 0) || (b.queueLikes || 0) - (a.queueLikes || 0) || a.playedAt - b.playedAt)[0];
+      mine = {
+        songs: own.length, likes, votes,
+        best: top ? { name: top.name, likes: top.playLikes || 0, votes: top.queueLikes || 0 } : null,
+      };
+    }
+    const s1 = sm.songOfNight;
+    return {
+      name: p.name || null, endedAt: p.endedAt, songs: sm.songs,
+      songOfNight: s1 && { name: s1.name, artists: s1.artists, image: s1.image, addedBy: s1.addedBy, likes: s1.playLikes, votes: s1.queueLikes },
+      dj: sm.bestDj && { name: sm.bestDj.name, likes: sm.bestDj.likes, votes: sm.bestDj.votes },
+      mine,
+    };
   }
 
   // ---------- historial ----------

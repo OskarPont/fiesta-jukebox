@@ -735,13 +735,45 @@ async function main() {
     await admin.locator('#card-party button', { hasText: 'Terminar fiesta' }).click();
     await admin.locator('#card-party button', { hasText: 'Pulsa otra vez' }).click();
     await g[0].waitForSelector('#view-join:not([hidden])', { timeout: 5000 });
-    await waitFor(async () => (await g[0].textContent('#joinNotice')).includes('terminado'), { msg: 'mensaje de fin' });
+    await g[0].waitForSelector('#farewell:not([hidden])', { timeout: 5000 });
     await g[0].waitForSelector('#joinClosed:not([hidden])');
-    expect(await g[0].locator('#joinNotice').isVisible(), 'aviso de fin visible (#1)');
+    expect((await g[0].textContent('#farewellTitle')).includes('La fiesta ha terminado'), 'título de la despedida');
+    expect(!(await g[0].textContent('#joinNotice')).includes('terminado'), 'sin aviso redundante «ha terminado» con la despedida');
     // region viva siempre presente (sin hidden) para que los lectores de pantalla anuncien el cambio
     expect(await g[0].getAttribute('#joinNotice', 'role') === 'status' && await g[0].getAttribute('#joinNotice', 'hidden') === null, 'aviso como region viva');
     await shot(g[0], '21-guest-party-ended');
     await shot(admin, '44-admin-party-stopped', { fullPage: true });
+  });
+  await step('despedida en el móvil: resumen de la noche, sobrevive a la expulsión y a recargar (#7)', async () => {
+    const sm = (await api(adminCtx, 'GET', 'admin/status')).body.summary;
+    expect(sm && sm.songs > 0, 'resumen del servidor con canciones: ' + JSON.stringify(sm));
+    const fw = g[0].locator('#farewell');
+    const check = async (when) => {
+      expect(await fw.isVisible(), `despedida visible ${when}`);
+      const t = await fw.textContent();
+      expect(t.includes('Tu noche'), `bloque «Tu noche» ${when}: ${t}`);
+      if (sm.songOfNight) {
+        expect(t.includes('Canción de la noche') && t.includes(sm.songOfNight.name), `canción de la noche ${when}: ${t}`);
+        const exp = `${sm.songOfNight.playLikes} ${sm.songOfNight.playLikes === 1 ? 'like' : 'likes'} · ${sm.songOfNight.queueLikes} ${sm.songOfNight.queueLikes === 1 ? 'voto' : 'votos'}`;
+        expect(t.includes(exp), `meta de la canción «${exp}» ${when}: ${t}`);
+      } else expect(!t.includes('Canción de la noche'), `sin canción de la noche ${when}`);
+      if (sm.bestDj) expect(t.includes('DJ de la noche') && t.includes(sm.bestDj.name), `DJ de la noche ${when}: ${t}`);
+      else expect(!t.includes('DJ de la noche'), `sin DJ ${when}`);
+    };
+    await check('al terminar');
+    await shot(g[0], '40-guest-farewell', { fullPage: true });
+    await sleep(1200); // el servidor corta las conexiones a los 800 ms
+    await check('tras la expulsión');
+    await g[0].reload();
+    await g[0].waitForSelector('#view-join:not([hidden])');
+    await g[0].waitForSelector('#farewell:not([hidden])', { timeout: 5000 });
+    await check('tras recargar');
+    const noScroll = await g[0].evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+    expect(noScroll, 'sin scroll horizontal en la despedida');
+    // un navegador sin sesión no ve datos personales pero sí la despedida pública
+    const anon = await (await fetch(`${BASE}/api/party`)).json();
+    expect(anon.farewell && anon.farewell.mine === null, 'despedida anónima sin «mine»');
+    expect(!JSON.stringify(anon).match(/"(id|pin|token)"/), 'sin ids ni PIN en /api/party');
   });
   await step('persistencia: reiniciar el servidor conserva fiesta, ajustes e historial', async () => {
     await api(adminCtx, 'POST', 'admin/party/start', { name: 'Segunda fiesta' });
@@ -753,6 +785,10 @@ async function main() {
     expect(st.body.party.name === 'Segunda fiesta' && st.body.party.active, 'fiesta activa tras reinicio');
     const p = await (await fetch(`${BASE}/api/party`)).json();
     expect(p.active === true, 'party publica');
+    expect(p.farewell === null, 'la fiesta nueva no arrastra la despedida');
+    await g[0].reload();
+    await g[0].waitForSelector('#joinForm:not([hidden])', { timeout: 5000 });
+    expect(await g[0].locator('#farewell').isHidden(), 'despedida oculta y formulario de vuelta con fiesta nueva');
     const mode = fs.statSync(path.join(DATA, 'state.json')).mode & 0o777;
     expect(fs.existsSync(path.join(DATA, 'spotify.json')) && (process.platform === 'win32' || (fs.statSync(path.join(DATA, 'spotify.json')).mode & 0o777) === 0o600), 'spotify.json con permisos 600');
   });
