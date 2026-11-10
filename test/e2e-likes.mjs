@@ -246,6 +246,9 @@ async function main() {
     await waitFor(async () => (await admin.textContent('#card-history .sum')).includes(A.name), { msg: 'canción de la noche' });
     const t = await admin.textContent('#card-history .sum');
     expect(t.includes('Laura'), 'mejor DJ Laura: ' + t);
+    expect(t.includes('DJ de la noche') && !t.includes('Mejor DJ'), 'fila «DJ de la noche»: ' + t);
+    expect(/\d+ likes? · \d+ votos?/.test(t), 'meta «N likes · M votos»: ' + t);
+    expect(!t.includes('Más canciones puestas'), 'sin «Más canciones puestas»: ' + t);
     await admin.locator('#card-history').scrollIntoViewIfNeeded();
     await shot(admin, 'L2-admin-history', { fullPage: true });
   });
@@ -284,6 +287,10 @@ async function main() {
     await admin.click('#card-history button:has-text("Mostrar resumen en la pantalla")');
     await tv.waitForSelector('#summary:not([hidden])', { timeout: 4000 });
     expect((await tv.textContent('#sumSongName')).includes(A.name), 'canción de la noche en TV');
+    const tvSum = await tv.textContent('#summary');
+    expect(tvSum.includes('DJ de la noche') && !tvSum.includes('Mejor DJ') && !tvSum.includes('Más canciones'), 'textos del resumen en TV: ' + tvSum);
+    expect(/^\d+ likes? · \d+ votos?$/.test((await tv.textContent('#sumDjMeta')).trim()), 'meta del DJ en TV: ' + (await tv.textContent('#sumDjMeta')));
+    expect((await tv.locator('#sumActive').count()) === 0, 'sin bloque sumActive');
     await sleep(1200);
     await shot(tv, 'L5-pantalla-resumen');
     await admin.click('#card-history button:has-text("Quitar resumen de la pantalla")');

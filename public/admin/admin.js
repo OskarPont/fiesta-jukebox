@@ -640,14 +640,13 @@ cards.history = (() => {
     if (!sm || !sm.songs) { sumBox.append(el('p', { class: 'hint', text: 'El resumen aparecerá cuando suenen canciones.' })); return; }
     const stat = (n, t) => el('div', { class: 'st' }, el('b', { text: String(n) }), el('span', { text: t }));
     sumBox.append(el('div', { class: 'sum-stats' },
-      stat(sm.songs, sm.songs === 1 ? 'canción' : 'canciones'), stat(sm.likes, sm.likes === 1 ? 'like o voto' : 'likes y votos'), stat(sm.joined || 0, (sm.joined || 0) === 1 ? 'invitado' : 'invitados')));
-    sumBox.append(el('p', { class: 'hint', text: `Likes: ${sm.playLikes} · votos: ${sm.queueLikes} · pedidas por invitados: ${sm.requested}` }));
+      stat(sm.songs, sm.songs === 1 ? 'canción' : 'canciones'), stat(sm.playLikes, sm.playLikes === 1 ? 'like' : 'likes'), stat(sm.queueLikes, sm.queueLikes === 1 ? 'voto' : 'votos'), stat(sm.joined || 0, (sm.joined || 0) === 1 ? 'invitado' : 'invitados')));
+    sumBox.append(el('p', { class: 'hint', text: `Pedidas por invitados: ${sm.requested}` }));
     const row = (k, v, m) => el('div', { class: 'sum-row' }, el('span', { class: 'k', text: k }), el('span', { class: 'v ellipsis', text: v }), m ? el('span', { class: 'm', text: m }) : null);
     const s1 = sm.songOfNight;
     sumBox.append(
       row('Canción de la noche', s1 ? `${s1.name} · ${artistsText(s1.artists)}` : 'Sin likes ni votos todavía', s1 ? `${plural(s1.playLikes, 'like', 'likes')} · ${plural(s1.queueLikes, 'voto', 'votos')}` : null),
-      row('Mejor DJ', sm.bestDj ? sm.bestDj.name : 'Nadie todavía', sm.bestDj ? `${plural(sm.bestDj.likes, 'like o voto', 'likes y votos')} en ${plural(sm.bestDj.songs, 'canción', 'canciones')}` : null),
-      row('Más canciones puestas', sm.mostActive ? sm.mostActive.name : 'Nadie todavía', sm.mostActive ? plural(sm.mostActive.songs, 'canción', 'canciones') : null));
+      row('DJ de la noche', sm.bestDj ? sm.bestDj.name : 'Nadie todavía', sm.bestDj ? `${plural(sm.bestDj.likes, 'like', 'likes')} · ${plural(sm.bestDj.votes, 'voto', 'votos')}` : null));
   }
 
   async function fetchRemote(id) {

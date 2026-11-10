@@ -163,6 +163,7 @@ export function forViewer(common, viewer, ctx) {
     isAdmin: !!viewer.isAdmin,
   };
   if (viewer.isAdmin) out.admin = common.admin;
+  else if (!common.party.active) out.farewell = party.farewellFor(viewer.guestToken);
   return out;
 }
 

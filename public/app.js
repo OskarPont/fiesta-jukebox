@@ -70,22 +70,60 @@ function showBanned(msg) {
   setJoinNotice(msg || 'No puedes entrar a esta fiesta.');
 }
 
-async function showJoin(notice) {
+async function showJoin(notice, farewell = null) {
   clearInterval(waitTimer);
   show('join');
   setJoinError('');
-  setJoinNotice(notice || '');
+  // con despedida, el aviso "La fiesta ha terminado" sobra: lo dice la propia tarjeta
+  setJoinNotice(farewell ? '' : notice || '');
+  if (farewell) paintJoin({ active: false, farewell });
   let party = null;
   try { party = await api('party'); } catch { /* sin red */ }
-  paintJoin(party);
+  if (party || !farewell) paintJoin(party);
   waitTimer = setInterval(async () => {
     if ($('view-join').hidden) { clearInterval(waitTimer); return; }
     try { paintJoin(await api('party')); } catch { /* ignorar */ }
   }, 15000);
 }
 
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const likesVotes = (l, v) => `${plural(l, 'like', 'likes')} · ${plural(v, 'voto', 'votos')}`;
+
+/** Tarjeta de despedida: resumen de la noche con los datos del propio invitado. Solo textContent, nunca innerHTML. */
+function paintFarewell(f) {
+  $('farewell').hidden = !f;
+  const body = $('farewellBody');
+  if (!f) { body.replaceChildren(); $('farewellParty').hidden = true; return; }
+  setText($('farewellParty'), f.name || ''); $('farewellParty').hidden = !f.name;
+  const sec = (title, ...kids) => el('div', { class: 'fw-sec' }, el('h3', { class: 'fw-h', text: title }), ...kids);
+  const parts = [];
+  const s = f.songOfNight;
+  if (s) {
+    const img = el('img', { class: 'fw-cover', alt: '', width: '64', height: '64' });
+    setSrc(img, s.image);
+    parts.push(sec('Canción de la noche', el('div', { class: 'fw-song' },
+      s.image ? img : null,
+      el('div', { class: 'fw-song-t' },
+        el('p', { class: 'fw-big', text: s.name }),
+        el('p', { class: 'fw-sub', text: artistsText(s.artists) }),
+        s.addedBy ? el('p', { class: 'fw-sub', text: `la puso ${s.addedBy}` }) : null,
+        el('p', { class: 'fw-meta', text: likesVotes(s.likes, s.votes) })))));
+  }
+  if (f.dj) parts.push(sec('DJ de la noche', el('p', { class: 'fw-big', text: f.dj.name }), el('p', { class: 'fw-meta', text: likesVotes(f.dj.likes, f.dj.votes) })));
+  const m = f.mine;
+  if (m) {
+    parts.push(sec('Tu noche', m.songs
+      ? [el('p', { class: 'fw-big', text: `Pusiste ${plural(m.songs, 'canción', 'canciones')}` }),
+        el('p', { class: 'fw-meta', text: likesVotes(m.likes, m.votes) }),
+        m.best ? el('p', { class: 'fw-sub', text: `La que más gustó: ${m.best.name}` }) : null]
+      : el('p', { class: 'fw-big', text: 'Esta vez no pusiste canciones' })));
+  }
+  body.replaceChildren(...parts);
+}
+
 function paintJoin(party) {
   const active = !!party?.active;
+  paintFarewell(!active && party?.farewell ? party.farewell : null);
   $('joinClosed').hidden = active;
   $('joinForm').hidden = !active;
   const jp = $('joinParty');
@@ -139,7 +177,7 @@ function enterMain() {
 function render(st) {
   state = st;
   syncClock(st.serverNow);
-  if (!st.party.active) { events?.close(); me = null; showJoin('La fiesta ha terminado. ¡Gracias por venir!'); return; }
+  if (!st.party.active) { events?.close(); me = null; showJoin('La fiesta ha terminado. ¡Gracias por venir!', st.farewell || null); return; }
   if (!st.me) { events?.close(); me = null; showJoin('Tu sesión ha caducado. Vuelve a entrar con el PIN.'); return; }
   me = { id: st.me.id, name: st.me.name };
   for (const [id, t] of pendingAdd) if (st.queue.some((q) => q.trackId === id) || Date.now() - t > 4000) pendingAdd.delete(id);

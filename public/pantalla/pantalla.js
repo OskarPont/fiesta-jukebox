@@ -89,7 +89,7 @@ function renderSummary(s) {
   const n = (x) => String(x ?? 0);
   const pl = (k, one, many) => `${k} ${k === 1 ? one : many}`;
   setText($('sumParty'), s.name || '');
-  setText($('sumSongs'), n(s.songs)); setText($('sumLikes'), n(s.likes)); setText($('sumGuests'), n(s.joined));
+  setText($('sumSongs'), n(s.songs)); setText($('sumLikes'), n(s.playLikes)); setText($('sumVotes'), n(s.queueLikes)); setText($('sumGuests'), n(s.joined));
   const song = s.songOfNight;
   $('sumSong').hidden = !song;
   if (song) {
@@ -99,9 +99,7 @@ function renderSummary(s) {
     setText($('sumSongMeta'), `${pl(song.playLikes, 'like', 'likes')} · ${pl(song.queueLikes, 'voto', 'votos')}${song.addedBy ? ' · la puso ' + song.addedBy : ''}`);
   }
   setText($('sumDj'), s.bestDj ? s.bestDj.name : 'Nadie todavía');
-  setText($('sumDjMeta'), s.bestDj ? `${pl(s.bestDj.likes, 'like o voto', 'likes y votos')} en ${s.bestDj.songs === 1 ? 'su canción' : `sus ${s.bestDj.songs} canciones`}` : '');
-  setText($('sumActive'), s.mostActive ? s.mostActive.name : 'Nadie todavía');
-  setText($('sumActiveMeta'), s.mostActive ? pl(s.mostActive.songs, 'canción', 'canciones') : '');
+  setText($('sumDjMeta'), s.bestDj ? `${pl(s.bestDj.likes, 'like', 'likes')} · ${pl(s.bestDj.votes, 'voto', 'votos')}` : '');
   const top = $('sumTop'); top.replaceChildren();
   for (const t of s.top) top.append(el('li', {}, el('span', { class: 't ellipsis', text: `${t.name} · ${artistsText(t.artists)}` }), el('span', { class: 'v', title: `${pl(t.playLikes, 'like', 'likes')} · ${pl(t.queueLikes, 'voto', 'votos')}` }, icon('heart'), String(t.playLikes), icon('up'), String(t.queueLikes))));
   if (!s.top.length) top.append(el('li', { class: 'muted-t', text: 'Sin likes ni votos todavía' }));

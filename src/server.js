@@ -149,7 +149,10 @@ export async function createApp(cfg = config, { logger = false } = {}) {
   await app.register(async (api) => {
     api.get('/health', async () => ({ ok: true }));
 
-    api.get('/party', async () => ({ active: party.active, name: s.party?.name || null, needsPin: true }));
+    api.get('/party', async (req) => ({
+      active: party.active, name: s.party?.name || null, needsPin: true,
+      farewell: party.active ? null : party.farewellFor(req.cookies[GUEST_COOKIE]),
+    }));
 
     api.post('/join', async (req, reply) => {
       const ip = req.ip;

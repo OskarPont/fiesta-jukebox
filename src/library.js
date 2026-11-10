@@ -113,8 +113,8 @@ export function summarize(history, { name = null, startedAt = null, endedAt = nu
   for (const h of history) {
     queueLikes += h.queueLikes || 0; playLikes += h.playLikes || 0;
     if (h.addedBy?.id) {
-      const d = djs.get(h.addedBy.id) || { id: h.addedBy.id, name: h.addedBy.name, songs: 0, likes: 0 };
-      d.songs += 1; d.likes += likesOf(h); d.name = h.addedBy.name;
+      const d = djs.get(h.addedBy.id) || { name: h.addedBy.name, songs: 0, likes: 0, votes: 0 };
+      d.songs += 1; d.likes += h.playLikes || 0; d.votes += h.queueLikes || 0; d.name = h.addedBy.name;
       djs.set(h.addedBy.id, d);
     }
   }
@@ -122,18 +122,19 @@ export function summarize(history, { name = null, startedAt = null, endedAt = nu
     trackId: h.trackId, name: h.name, artists: h.artists, image: h.image,
     addedBy: h.addedBy?.name || null, queueLikes: h.queueLikes || 0, playLikes: h.playLikes || 0, likes: likesOf(h),
   });
+  // like (sonando) pesa mas que voto (en cola); a igualdad, la que sono antes
   const ranked = [...history].filter((h) => likesOf(h) > 0)
-    .sort((a, b) => likesOf(b) - likesOf(a) || (b.playLikes || 0) - (a.playLikes || 0) || a.playedAt - b.playedAt);
-  const djList = [...djs.values()];
-  const bestDj = djList.filter((d) => d.likes > 0).sort((a, b) => b.likes - a.likes || b.songs - a.songs)[0] || null;
-  const mostActive = djList.sort((a, b) => b.songs - a.songs || b.likes - a.likes)[0] || null;
+    .sort((a, b) => (b.playLikes || 0) - (a.playLikes || 0) || (b.queueLikes || 0) - (a.queueLikes || 0) || a.playedAt - b.playedAt);
+  const bestDj = [...djs.values()].filter((d) => d.likes + d.votes > 0)
+    .sort((a, b) => b.likes - a.likes || b.votes - a.votes || b.songs - a.songs)
+    .map(({ name, likes, votes, songs }) => ({ name, likes, votes, songs }))[0] || null;
   return {
     name, startedAt, endedAt, joined,
     songs, requested: history.filter((h) => h.addedBy).length,
     queueLikes, playLikes, likes: queueLikes + playLikes,
     songOfNight: ranked[0] ? pick(ranked[0]) : null,
     top: ranked.slice(0, 5).map(pick),
-    bestDj, mostActive,
+    bestDj,
   };
 }
 

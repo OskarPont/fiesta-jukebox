@@ -12,13 +12,41 @@ const H = [
   { trackId: 'd', uri: 'spotify:track:d', name: 'D', artists: ['z'], addedBy: { id: 'g2', name: 'Pau' }, playedAt: 400, addedAt: 390, queueLikes: 0, playLikes: 0 },
 ];
 
-test('resumen: cancion de la noche, mejor DJ y mas activo', () => {
+test('resumen: cancion de la noche y DJ de la noche', () => {
   const s = summarize(H, { name: 'F', joined: 5 });
   assert.equal(s.songs, 4); assert.equal(s.likes, 10); assert.equal(s.queueLikes, 6); assert.equal(s.playLikes, 4);
   assert.equal(s.songOfNight.trackId, 'a');
-  assert.equal(s.bestDj.name, 'Laura'); assert.equal(s.bestDj.likes, 5);
-  assert.equal(s.mostActive.name, 'Pau'); assert.equal(s.mostActive.songs, 2);
+  assert.deepEqual(s.bestDj, { name: 'Laura', likes: 3, votes: 2, songs: 1 });
+  assert.equal(s.songOfNight.playLikes, 3); assert.equal(s.songOfNight.queueLikes, 2); assert.equal(s.songOfNight.likes, 5);
   assert.equal(s.joined, 5);
+  assert.ok(!('mostActive' in s), 'sin mostActive');
+  assert.ok(!('id' in s.bestDj), 'bestDj sin id');
+});
+
+const mk = (id, playLikes, queueLikes, playedAt, who) => ({ trackId: id, name: id, artists: [], addedBy: who || null, playedAt, playLikes, queueLikes });
+
+test('resumen: cancion de la noche por likes y desempate por votos', () => {
+  // c tiene mas total (5) pero b tiene mas likes sonando
+  const s = summarize([mk('c', 1, 4, 100), mk('b', 2, 0, 200), mk('a', 0, 9, 50)]);
+  assert.equal(s.songOfNight.trackId, 'b');
+  assert.deepEqual(s.top.map((t) => t.trackId), ['b', 'c', 'a']);
+  // mismos likes: gana la de mas votos; todo igual: la que sono antes
+  assert.equal(summarize([mk('x', 2, 1, 100), mk('y', 2, 3, 200)]).songOfNight.trackId, 'y');
+  assert.equal(summarize([mk('x', 2, 1, 300), mk('y', 2, 1, 200)]).songOfNight.trackId, 'y');
+  assert.equal(summarize([mk('x', 0, 0, 100)]).songOfNight, null);
+});
+
+test('resumen: DJ de la noche por likes y desempate por votos', () => {
+  const L = { id: 'g1', name: 'Laura' }; const P = { id: 'g2', name: 'Pau' }; const M = { id: 'g3', name: 'Mar' };
+  // Pau tiene mas total (6) pero Laura mas likes (3 vs 1)
+  let s = summarize([mk('a', 3, 0, 1, L), mk('b', 1, 5, 2, P)]);
+  assert.deepEqual(s.bestDj, { name: 'Laura', likes: 3, votes: 0, songs: 1 });
+  // mismos likes: mas votos
+  s = summarize([mk('a', 2, 1, 1, L), mk('b', 1, 1, 2, P), mk('c', 1, 3, 3, P)]);
+  assert.deepEqual(s.bestDj, { name: 'Pau', likes: 2, votes: 4, songs: 2 });
+  // solo votos tambien cuenta; sin nada, nadie
+  assert.equal(summarize([mk('a', 0, 2, 1, M)]).bestDj.votes, 2);
+  assert.equal(summarize([mk('a', 0, 0, 1, M)]).bestDj, null);
 });
 
 test('playlist: filtros, tipo de like y orden', () => {
