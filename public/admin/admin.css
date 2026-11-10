@@ -61,7 +61,7 @@ details.fold > .stack { padding-bottom: 14px; }
 /* reproduccion: la tarjeta toma el color de la caratula */
 #card-player { background: linear-gradient(160deg, rgb(var(--tint) / 0.42), var(--surface) 62%); transition: background 1s ease; }
 .np-mini { display: flex; gap: 16px; align-items: center; }
-.np-mini img, .np-mini .ph { width: 80px; height: 80px; border-radius: 8px; object-fit: cover; background: var(--surface-3); flex: none; display: grid; place-items: center; color: #55555e; box-shadow: 0 14px 30px -12px rgba(0, 0, 0, 0.75); }
+.np-mini img, .np-mini .ph { width: 80px; height: 80px; border-radius: 8px; object-fit: cover; background: var(--surface-3); flex: none; display: grid; place-items: center; color: var(--ghost); box-shadow: 0 14px 30px -12px rgba(0, 0, 0, 0.75); }
 .np-mini .t { font-family: var(--font-display); font-weight: 700; font-size: 19px; letter-spacing: -0.015em; }
 .vol { display: flex; align-items: center; gap: 12px; }
 .vol .ico { color: var(--muted); }

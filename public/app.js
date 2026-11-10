@@ -258,6 +258,7 @@ function renderControls() {
   bp.replaceChildren(icon(s.pauseMode === 'admin' ? 'lock' : playing ? 'pause' : 'play'), el('span', { class: 'lbl', text: playing ? 'Pausa' : 'Seguir' }));
   bp.disabled = busy || s.pauseMode === 'admin' || !np || controlsDown;
   bp.classList.toggle('primary', !playing && s.pauseMode !== 'admin' && !!np);
+  bp.classList.toggle('subtle', playing || s.pauseMode === 'admin');
   bp.title = s.pauseMode === 'admin' ? 'Solo el anfitrión puede pausar' : '';
 
   bs.hidden = s.skipMode === 'admin';
@@ -522,7 +523,9 @@ async function doSearch(term) {
   } catch (e) {
     if (seq !== searchSeq) return;
     setText($('resultsInfo'), 'No se pudo buscar');
-    $('resultsList').replaceChildren(el('li', { class: 'res-empty', text: e.message }));
+    const retry = el('button', { class: 'btn btn-sm', type: 'button', text: 'Reintentar' });
+    retry.addEventListener('click', () => doSearch(term));
+    $('resultsList').replaceChildren(el('li', { class: 'res-empty' }, el('p', { text: e.message }), retry));
   }
 }
 
