@@ -122,7 +122,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: 70dvh; z-i
 .vote:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
 .vote:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .vote.on { color: var(--pink); background: color-mix(in srgb, var(--pink) 13%, transparent); }
-.vote.on .ico { fill: currentColor; }
+.vote.on .ico { stroke-width: 3; }
 .vote.pop .ico { animation: bump 0.45s var(--ease-out); }
 .vote[disabled] { cursor: default; opacity: 0.55; }
 .vote[disabled]:hover { background: transparent; color: var(--muted); }

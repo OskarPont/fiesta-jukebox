@@ -257,6 +257,11 @@ async function main() {
     await waitFor(async () => clean(await queueTitles(g[2]))[0] === C.name, { timeout: 1500, msg: 'C no sube' });
     expect(clean(await queueTitles(g[0]))[0] === C.name, 'orden en g1');
     expect(await heart(g[2], C.name).isDisabled(), 'no puedes votar tu propia cancion');
+    // #4: en la cola se vota con la flecha (no el corazon) y el boton lo dice
+    const vb = await g[1].locator('#queue .q-item', { hasText: A.name }).locator('.vote').evaluate((b) => ({ up: !!b.querySelector('svg path[d="M12 19V5"]'), heart: !!b.querySelector('svg path[d^="M19 14c1.49"]'), label: b.getAttribute('aria-label') }));
+    expect(vb.up && !vb.heart, 'el voto de la cola usa la flecha, no el corazon: ' + JSON.stringify(vb));
+    expect(/^(Votar|Quitar mi voto)/.test(vb.label), 'aria-label del voto: ' + vb.label);
+    expect((await heart(g[2], C.name).getAttribute('aria-label')) === 'Votos a tu canción', 'aria-label de la propia canción');
     await shot(g[0], '12-guest-main-queue', { fullPage: false });
     await shot(g[0], '13-guest-main-queue-full', { fullPage: true });
   });
@@ -274,6 +279,15 @@ async function main() {
     await shot(g[0], '14-guest-search-results');
     await g[0].keyboard.press('Escape');
     await waitFor(async () => g[0].locator('#results').isHidden());
+    // #4: una sola X, que borra y cierra
+    expect((await g[0].locator('#resultsClose').count()) === 0, 'ya no hay segunda X en la cabecera de resultados');
+    expect((await g[0].getAttribute('#qClear', 'aria-label')) === 'Borrar y cerrar la búsqueda', 'aria-label de la X');
+    await g[0].fill('#q', X.name.toLowerCase());
+    await g[0].locator('#resultsList .res', { hasText: X.name }).first().waitFor();
+    expect(await g[0].locator('#qClear').isVisible(), 'la X se ve con resultados abiertos');
+    await g[0].click('#qClear');
+    await waitFor(async () => g[0].locator('#results').isHidden(), { msg: 'la X cierra los resultados' });
+    expect((await g[0].inputValue('#q')) === '' && await g[0].locator('#qClear').isHidden(), 'la X borra el texto y se esconde');
   });
   await step('buscador: sube arriba al enfocar y los resultados caben sobre el teclado (#3)', async () => {
     const orig = g[0].viewportSize();
@@ -561,13 +575,14 @@ async function main() {
     }
     await api(adminCtx, 'PUT', 'admin/settings', { ordering: 'fifo' });
     await admin.locator('#card-player button', { hasText: 'Seguir' }).click();
-    const seen = []; let fedRemaining = null; let fedMax = 0;
+    const seen = []; let fedRemaining = null; let fedMax = 0; let fedUi = null;
     const t0 = Date.now();
     while (Date.now() - t0 < 60000) {
       const st = await mockState();
       const cur = st.mock.current;
       if (cur && seen[seen.length - 1] !== cur) seen.push(cur);
       if (st.state.fed) {
+        if (!fedUi) fedUi = await g[0].evaluate(() => { const li = document.querySelector('#queue .q-item.fed'); return li ? { by: li.querySelector('.q-by').textContent, label: li.querySelector('.vote').getAttribute('aria-label'), title: li.querySelector('.vote').title, lock: !!li.querySelector('.vote svg rect') } : null; });
         const meta = CAT.find((c) => c.name === st.state.queue.length && false);
         const trk = CAT.find((c) => c.uri === st.state.fed.uri);
         if (trk) { const rem = trk && st.mock.current ? (CAT.find((c) => c.name === st.mock.current).duration_ms - st.mock.progressMs) : null; if (rem !== null && fedRemaining === null) fedRemaining = rem; }
@@ -581,6 +596,7 @@ async function main() {
     const order = seen.filter((n) => seq.some((s) => s.name === n));
     expect(JSON.stringify(order) === JSON.stringify(seq.map((s) => s.name)), 'orden de reproduccion: ' + order.join(' > '));
     expect(fedMax > 0, 'fed aparecio');
+    expect(fedUi && fedUi.by.startsWith('Ya va a sonar · de ') && fedUi.lock && fedUi.label === 'Ya va a sonar: no se puede votar ni quitar' && fedUi.title === fedUi.label, 'el que ya va dice «Ya va a sonar» y su candado se explica: ' + JSON.stringify(fedUi));
     // «Ahora suena» solo le llega al dueño de la canción (#2): T20 es de g[0] (Laura), T21 de g[2] (Carla)
     const now0 = (await seenToasts(g[0])).filter((t) => t.startsWith('Ahora suena'));
     const now2 = (await seenToasts(g[2])).filter((t) => t.startsWith('Ahora suena'));

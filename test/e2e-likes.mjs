@@ -153,6 +153,7 @@ async function main() {
   await step('like a la que suena: Laura no puede (es suya), Marc y Pau sí', async () => {
     await waitFor(async () => !(await g[1].isHidden('#btnLike')));
     expect(await g[0].locator('#btnLike').isDisabled(), 'like propio desactivado');
+    expect(await g[1].locator('#btnLike svg path[d^="M19 14c1.49"]').count() === 1 && await g[1].locator('#btnLike svg path[d="M12 19V5"]').count() === 0, 'el me gusta de lo que suena sigue siendo el corazon');
     await g[1].click('#btnLike');
     await waitFor(async () => (await g[1].getAttribute('#btnLike', 'aria-pressed')) === 'true', { msg: 'like de Marc' });
     await g[2].click('#btnLike');
@@ -164,7 +165,7 @@ async function main() {
     await waitFor(async () => (await g[0].textContent('#btnLike')).trim() === '1');
     await g[2].click('#btnLike');
     await waitFor(async () => (await g[0].textContent('#btnLike')).trim() === '2');
-    await waitFor(async () => (await admin.textContent('#card-player')).includes('cola 0 · sonando 2'), { msg: 'admin ve el desglose de A' });
+    await waitFor(async () => (await admin.locator('#card-player .lk').first().getAttribute('title').catch(() => '')) === '2 likes · 0 votos', { msg: 'admin ve el desglose de A' });
     await shot(g[1], 'L1-guest-like', { fullPage: false });
   });
   await step('B suena con su like de cola y recibe un like sonando', async () => {
@@ -173,15 +174,15 @@ async function main() {
     await mockCmd('speed', 1);
     await waitFor(async () => (await g[1].textContent('#btnLike')).trim() === '1', { msg: 'B arranca con 1 like (el de cola)' });
     await g[0].click('#btnLike');
-    await waitFor(async () => (await admin.textContent('#card-player')).includes('cola 1 · sonando 1'), { msg: 'admin desglose B' });
+    await waitFor(async () => (await admin.locator('#card-player .lk').first().getAttribute('title').catch(() => '')) === '1 like · 1 voto', { msg: 'admin desglose B' });
   });
   await step('C (de Pau) sin likes; el historial guarda el desglose', async () => {
     await guestAdd(g[2], C);
     await mockCmd('speed', 40);
     await waitFor(async () => (await g[0].textContent('#npTitle')).includes(C.name), { timeout: 12000, msg: 'C no suena' });
     await waitFor(async () => (await admin.locator('#card-history .ah-item').count()) >= 2, { msg: 'historial' });
-    const txt = await admin.textContent('#card-history');
-    expect(txt.includes('cola 0 · sonando 2') && txt.includes('cola 1 · sonando 1'), 'desglose en historial');
+    const titles = await admin.locator('#card-history .lk').evaluateAll((els) => els.map((e) => e.title));
+    expect(titles.includes('2 likes · 0 votos') && titles.includes('1 like · 1 voto'), 'desglose en historial: ' + titles.join(' | '));
     await mockCmd('speed', 1);
   });
 
@@ -202,9 +203,9 @@ async function main() {
     r = await api(adminCtx, 'POST', 'admin/playlist/preview', { ...base, order: 'likes_desc', likeType: 'play' });
     expect(r.body.items[0].name === A.name, 'A primero por likes sonando');
     await admin.click('#card-history .builder summary');
-    await admin.locator('#card-history .builder .seg button', { hasText: 'Con mínimo de likes' }).click();
-    await admin.locator('#card-history .builder .seg button', { hasText: 'Sonando' }).click();
-    expect((await admin.locator('#card-history .builder .seg button', { hasText: 'Sonando' }).getAttribute('aria-pressed')) === 'true', 'Sonando seleccionado');
+    await admin.locator('#card-history .builder .seg button', { hasText: 'Con mínimo de likes y votos' }).click();
+    await admin.locator('#card-history .builder .seg button', { hasText: 'Solo likes' }).click();
+    expect((await admin.locator('#card-history .builder .seg button', { hasText: 'Solo likes' }).getAttribute('aria-pressed')) === 'true', 'Solo likes seleccionado');
     await admin.selectOption('#card-history .builder select', 'likes_desc');
     await admin.fill('#card-history .builder input[maxlength="100"]', 'Lo mejor de la fiesta');
     await waitFor(async () => (await admin.textContent('#card-history .pv')).includes('Saldrán 2 canciones'), { msg: 'preview UI' });

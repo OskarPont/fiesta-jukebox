@@ -96,15 +96,15 @@ function renderSummary(s) {
     if (song.image) setSrc($('sumSongImg'), song.image);
     $('sumSongImg').hidden = !song.image;
     setText($('sumSongName'), song.name); setText($('sumSongArt'), artistsText(song.artists));
-    setText($('sumSongMeta'), `${pl(song.likes, 'like', 'likes')}${song.addedBy ? ' · la puso ' + song.addedBy : ''}`);
+    setText($('sumSongMeta'), `${pl(song.playLikes, 'like', 'likes')} · ${pl(song.queueLikes, 'voto', 'votos')}${song.addedBy ? ' · la puso ' + song.addedBy : ''}`);
   }
   setText($('sumDj'), s.bestDj ? s.bestDj.name : 'Nadie todavía');
-  setText($('sumDjMeta'), s.bestDj ? `${pl(s.bestDj.likes, 'like', 'likes')} en ${s.bestDj.songs === 1 ? 'su canción' : `sus ${s.bestDj.songs} canciones`}` : '');
+  setText($('sumDjMeta'), s.bestDj ? `${pl(s.bestDj.likes, 'like o voto', 'likes y votos')} en ${s.bestDj.songs === 1 ? 'su canción' : `sus ${s.bestDj.songs} canciones`}` : '');
   setText($('sumActive'), s.mostActive ? s.mostActive.name : 'Nadie todavía');
   setText($('sumActiveMeta'), s.mostActive ? pl(s.mostActive.songs, 'canción', 'canciones') : '');
   const top = $('sumTop'); top.replaceChildren();
-  for (const t of s.top) top.append(el('li', {}, el('span', { class: 't ellipsis', text: `${t.name} · ${artistsText(t.artists)}` }), el('span', { class: 'v' }, icon('heart'), String(t.likes))));
-  if (!s.top.length) top.append(el('li', { class: 'muted-t', text: 'Sin likes todavía' }));
+  for (const t of s.top) top.append(el('li', {}, el('span', { class: 't ellipsis', text: `${t.name} · ${artistsText(t.artists)}` }), el('span', { class: 'v', title: `${pl(t.playLikes, 'like', 'likes')} · ${pl(t.queueLikes, 'voto', 'votos')}` }, icon('heart'), String(t.playLikes), icon('up'), String(t.queueLikes))));
+  if (!s.top.length) top.append(el('li', { class: 'muted-t', text: 'Sin likes ni votos todavía' }));
 }
 
 /** Barra "Ahora suena" dentro del resumen, para no perder de vista la musica. */
@@ -132,11 +132,11 @@ function updateItem(li, q) {
   setSrc(li.querySelector('img'), q.thumb || q.image);
   setText(li.querySelector('.n-title'), q.name);
   setText(li.querySelector('.n-sub'), artistsText(q.artists));
-  setText(li.querySelector('.n-by'), q.fed ? `A continuación · de ${q.addedBy.name}` : `de ${q.addedBy.name}`);
+  setText(li.querySelector('.n-by'), q.fed ? `Ya va a sonar · de ${q.addedBy.name}` : `de ${q.addedBy.name}`);
   const v = li.querySelector('.n-votes');
   v.classList.toggle('zero', q.votes === 0);
   const k = String(q.votes);
-  if (v.dataset.k !== k) { v.dataset.k = k; v.replaceChildren(icon('heart'), String(q.votes)); }
+  if (v.dataset.k !== k) { v.dataset.k = k; v.replaceChildren(icon('up'), String(q.votes)); }
   v.hidden = q.fed;
 }
 

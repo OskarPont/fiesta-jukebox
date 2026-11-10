@@ -371,7 +371,7 @@ cards.settings = (() => {
     rangeSetting('noRepeatMin', 'No repetir canciones', 'No se puede añadir algo que sonó hace menos de:', 0, 240, 5, (v) => (v === 0 ? 'se puede repetir' : `${v} min`)),
     switchSetting('allowAdd', 'Cola abierta', 'Si la cierras, nadie puede añadir canciones.'),
     segSetting('fillerMode', 'Cuando la cola se vacía', 'Qué suena si nadie ha pedido nada.', [['classics', 'Clásicos de mis fiestas'], ['host', 'Mi playlist de Spotify']]),
-    rangeSetting('classicsMinScore', 'Puntos para ser clásico', '1 punto por like sonando, 0,5 por like en cola (sumando todas las fiestas).', 1, 20, 1, (v) => `${v} pts`),
+    rangeSetting('classicsMinScore', 'Puntos para ser clásico', '1 punto por like, 0,5 por voto (sumando todas las fiestas).', 1, 20, 1, (v) => `${v} pts`),
     switchSetting('classicsAutoUpdate', 'Actualizar "Clásicos de fiesta" al terminar', 'La playlist de Spotify se rehace sola al terminar cada fiesta.'));
   return {
     root: c.root,
@@ -414,7 +414,7 @@ cards.queue = (() => {
     setText(li.querySelector('.t'), q.name);
     setText(li.querySelector('.s'), `${artistsText(q.artists)} · de ${q.addedBy.name}`);
     const vt = li.querySelector('.votes-tag');
-    vt.replaceChildren(); if (q.votes) vt.append(icon('heart', 'sm'), String(q.votes));
+    vt.replaceChildren(); if (q.votes) vt.append(icon('up', 'sm'), String(q.votes));
     li.querySelector('.grip').hidden = q.fed;
     li.querySelector('.top').hidden = q.fed;
     li.querySelector('.del').hidden = q.fed;
@@ -532,8 +532,8 @@ function likesLine(h) {
   const parts = [];
   const tot = (h.queueLikes || 0) + (h.playLikes || 0);
   if (!tot) return null;
-  return el('span', { class: 'lk', title: `${h.queueLikes || 0} likes en cola · ${h.playLikes || 0} likes sonando` },
-    icon('heart', 'sm'), el('b', { text: String(tot) }), el('span', { class: 'lk-split', text: `cola ${h.queueLikes || 0} · sonando ${h.playLikes || 0}` }));
+  return el('span', { class: 'lk', title: `${plural(h.playLikes || 0, 'like', 'likes')} · ${plural(h.queueLikes || 0, 'voto', 'votos')}` },
+    icon('heart', 'sm'), el('b', { text: String(h.playLikes || 0) }), icon('up', 'sm'), el('b', { text: String(h.queueLikes || 0) }), el('span', { class: 'lk-split', text: `${tot} en total` }));
 }
 function originText(h) {
   if (h.addedBy) return `de ${h.addedBy}`;
@@ -561,16 +561,16 @@ cards.history = (() => {
 
   // constructor de playlist
   const pl = { filter: 'all', minLikes: 1, likeType: 'total', order: 'played_asc', includeFiller: true };
-  const filterSeg = seg([['all', 'Todas'], ['min', 'Con mínimo de likes']], (v) => { pl.filter = v; filterSeg.set(v); minRow.hidden = v !== 'min'; schedulePreview(); });
+  const filterSeg = seg([['all', 'Todas'], ['min', 'Con mínimo de likes y votos']], (v) => { pl.filter = v; filterSeg.set(v); minRow.hidden = v !== 'min'; schedulePreview(); });
   filterSeg.set('all');
-  const minIn = el('input', { class: 'input num', type: 'number', min: '1', max: '999', value: '1', inputmode: 'numeric', 'aria-label': 'Mínimo de likes' });
+  const minIn = el('input', { class: 'input num', type: 'number', min: '1', max: '999', value: '1', inputmode: 'numeric', 'aria-label': 'Mínimo de likes y votos' });
   minIn.addEventListener('input', () => { pl.minLikes = Math.max(0, Math.min(999, parseInt(minIn.value, 10) || 0)); schedulePreview(); });
-  const minRow = el('div', { class: 'row', hidden: true }, el('span', { text: 'Al menos' }), minIn, el('span', { text: 'likes' }));
-  const typeSeg = seg([['total', 'Todos los likes'], ['play', 'Sonando'], ['queue', 'En cola']], (v) => { pl.likeType = v; typeSeg.set(v); schedulePreview(); });
+  const minRow = el('div', { class: 'row', hidden: true }, el('span', { text: 'Al menos' }), minIn, el('span', { text: 'likes y votos' }));
+  const typeSeg = seg([['total', 'Likes y votos'], ['play', 'Solo likes'], ['queue', 'Solo votos']], (v) => { pl.likeType = v; typeSeg.set(v); schedulePreview(); });
   typeSeg.set('total');
   const orderSel = el('select', { class: 'input sel', 'aria-label': 'Orden' },
     ...[['played_asc', 'Como sonaron (de la primera a la última)'], ['played_desc', 'Como sonaron (de la última a la primera)'],
-      ['likes_desc', 'Más likes primero'], ['likes_asc', 'Menos likes primero'],
+      ['likes_desc', 'Más likes y votos primero'], ['likes_asc', 'Menos likes y votos primero'],
       ['added_asc', 'Por cuándo se pidieron (antiguas primero)'], ['added_desc', 'Por cuándo se pidieron (recientes primero)']]
       .map(([v, t]) => el('option', { value: v, text: t })));
   orderSel.addEventListener('change', () => { pl.order = orderSel.value; schedulePreview(); });
@@ -610,7 +610,7 @@ cards.history = (() => {
     el('summary', { text: 'Crear una playlist con esta fiesta' }),
     el('div', { class: 'stack' },
       el('div', { class: 'set' }, el('div', { class: 'lab', text: 'Qué canciones' }), filterSeg.el, minRow),
-      el('div', { class: 'set' }, el('div', { class: 'lab', text: 'Qué likes cuentan' }), el('div', { class: 'desc', text: 'Para el mínimo y para ordenar por likes.' }), typeSeg.el),
+      el('div', { class: 'set' }, el('div', { class: 'lab', text: 'Qué cuenta' }), el('div', { class: 'desc', text: 'Para el mínimo y para ordenar por likes y votos.' }), typeSeg.el),
       el('div', { class: 'set' }, el('div', { class: 'lab', text: 'Orden' }), orderSel),
       el('div', { class: 'set inline' }, el('div', {}, el('div', { class: 'lab', text: 'Incluir canciones de relleno' }), el('div', { class: 'desc', text: 'Las que no pidió nadie.' })), el('label', { class: 'switch' }, fillIn, el('i'))),
       el('div', { class: 'set' }, el('div', { class: 'lab', text: 'Nombre' }), nameIn),
@@ -640,13 +640,13 @@ cards.history = (() => {
     if (!sm || !sm.songs) { sumBox.append(el('p', { class: 'hint', text: 'El resumen aparecerá cuando suenen canciones.' })); return; }
     const stat = (n, t) => el('div', { class: 'st' }, el('b', { text: String(n) }), el('span', { text: t }));
     sumBox.append(el('div', { class: 'sum-stats' },
-      stat(sm.songs, sm.songs === 1 ? 'canción' : 'canciones'), stat(sm.likes, sm.likes === 1 ? 'like' : 'likes'), stat(sm.joined || 0, (sm.joined || 0) === 1 ? 'invitado' : 'invitados')));
-    sumBox.append(el('p', { class: 'hint', text: `Likes en cola: ${sm.queueLikes} · likes sonando: ${sm.playLikes} · pedidas por invitados: ${sm.requested}` }));
+      stat(sm.songs, sm.songs === 1 ? 'canción' : 'canciones'), stat(sm.likes, sm.likes === 1 ? 'like o voto' : 'likes y votos'), stat(sm.joined || 0, (sm.joined || 0) === 1 ? 'invitado' : 'invitados')));
+    sumBox.append(el('p', { class: 'hint', text: `Likes: ${sm.playLikes} · votos: ${sm.queueLikes} · pedidas por invitados: ${sm.requested}` }));
     const row = (k, v, m) => el('div', { class: 'sum-row' }, el('span', { class: 'k', text: k }), el('span', { class: 'v ellipsis', text: v }), m ? el('span', { class: 'm', text: m }) : null);
     const s1 = sm.songOfNight;
     sumBox.append(
-      row('Canción de la noche', s1 ? `${s1.name} · ${artistsText(s1.artists)}` : 'Sin likes todavía', s1 ? `${plural(s1.likes, 'like', 'likes')} (cola ${s1.queueLikes} · sonando ${s1.playLikes})` : null),
-      row('Mejor DJ', sm.bestDj ? sm.bestDj.name : 'Nadie todavía', sm.bestDj ? `${plural(sm.bestDj.likes, 'like', 'likes')} en ${plural(sm.bestDj.songs, 'canción', 'canciones')}` : null),
+      row('Canción de la noche', s1 ? `${s1.name} · ${artistsText(s1.artists)}` : 'Sin likes ni votos todavía', s1 ? `${plural(s1.playLikes, 'like', 'likes')} · ${plural(s1.queueLikes, 'voto', 'votos')}` : null),
+      row('Mejor DJ', sm.bestDj ? sm.bestDj.name : 'Nadie todavía', sm.bestDj ? `${plural(sm.bestDj.likes, 'like o voto', 'likes y votos')} en ${plural(sm.bestDj.songs, 'canción', 'canciones')}` : null),
       row('Más canciones puestas', sm.mostActive ? sm.mostActive.name : 'Nadie todavía', sm.mostActive ? plural(sm.mostActive.songs, 'canción', 'canciones') : null));
   }
 
@@ -705,7 +705,7 @@ cards.classics = (() => {
     toast(`Clásicos actualizados (${r.count} canciones)`, 'ok');
   } });
   const list = el('ul', { class: 'ah' });
-  const empty = el('p', { class: 'empty-note', text: 'Todavía no hay clásicos. Saldrán solos cuando la gente dé likes en tus fiestas.' });
+  const empty = el('p', { class: 'empty-note', text: 'Todavía no hay clásicos. Saldrán solos cuando la gente dé likes y votos en tus fiestas.' });
   const restore = el('div', { class: 'row' });
   c.body.append(intro, el('div', { class: 'row' }, updBtn), plInfo, list, empty, restore);
   function create() {
@@ -730,7 +730,7 @@ cards.classics = (() => {
     root: c.root,
     update(s) {
       const k = s.admin.classics; const set = s.settings;
-      setText(intro, `Las canciones que más gustan en todas tus fiestas. Puntos: 1 por cada like sonando y 0,5 por cada like en cola. Entran las que tienen ${set.classicsMinScore} puntos o más (se cambia en Ajustes).${set.classicsAutoUpdate ? ' La playlist se actualiza sola al terminar cada fiesta.' : ''}${set.fillerMode === 'classics' ? ' Cuando la cola se vacía, suenan estas canciones.' : ''}`);
+      setText(intro, `Las canciones que más gustan en todas tus fiestas. Puntos: 1 por cada like y 0,5 por cada voto. Entran las que tienen ${set.classicsMinScore} puntos o más (se cambia en Ajustes).${set.classicsAutoUpdate ? ' La playlist se actualiza sola al terminar cada fiesta.' : ''}${set.fillerMode === 'classics' ? ' Cuando la cola se vacía, suenan estas canciones.' : ''}`);
       const p = k.playlist;
       plInfo.replaceChildren();
       if (p?.url) plInfo.append(el('a', { href: p.url, target: '_blank', rel: 'noopener', text: 'Abrir "Clásicos de fiesta" en Spotify' }), p.updatedAt ? ` · actualizada ${fmtAgo(p.updatedAt)} con ${plural(p.count, 'canción', 'canciones')}` : '');

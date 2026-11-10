@@ -138,6 +138,7 @@ input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
 .lkw:empty { display: none; }
 .lk { display: inline-flex; align-items: center; gap: 5px; color: var(--pink); font-size: 13px; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .lk .ico { fill: currentColor; width: 14px; height: 14px; }
+.lk .ico + b + .ico { fill: none; stroke-width: 3; margin-left: 4px; }
 .lk .lk-split { color: var(--muted); margin-left: 4px; }
 .score { color: var(--text); font-weight: 650; font-size: 13.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .xb { flex: none; }

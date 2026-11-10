@@ -20,7 +20,6 @@ const setBg = makeBackground($('bg'));
 // ---------- iconos estaticos ----------
 setIcon($('searchIco'), 'search');
 setIcon($('qClear'), 'x');
-setIcon($('resultsClose'), 'x');
 setIcon($('emptyIco'), 'music');
 setIcon($('coverPh'), 'music');
 
@@ -326,15 +325,17 @@ function updateQueueItem(li, q) {
     title.append(q.name);
   }
   setText(li.querySelector('.q-sub'), artistsText(q.artists));
-  setText(li.querySelector('.q-by'), q.fed ? `A continuación · de ${q.addedBy.name}` : `de ${q.mine ? 'ti' : q.addedBy.name}`);
+  setText(li.querySelector('.q-by'), q.fed ? `Ya va a sonar · de ${q.addedBy.name}` : `de ${q.mine ? 'ti' : q.addedBy.name}`);
   const vote = li.querySelector('.vote');
   vote.classList.toggle('on', q.voted);
   vote.disabled = q.mine || q.fed;
   vote.setAttribute('aria-pressed', String(q.voted));
-  vote.setAttribute('aria-label', q.mine ? 'Votos de tu canción' : q.voted ? 'Quitar mi voto' : 'Votar esta canción');
+  const voteLabel = q.fed ? 'Ya va a sonar: no se puede votar ni quitar' : q.mine ? 'Votos a tu canción' : q.voted ? 'Quitar mi voto' : 'Votar para que suene antes';
+  vote.setAttribute('aria-label', voteLabel);
+  vote.title = voteLabel;
   if (vote.dataset.v !== `${q.votes}|${q.fed}`) {
     vote.dataset.v = `${q.votes}|${q.fed}`;
-    vote.replaceChildren(icon(q.fed ? 'lock' : 'heart', 'sm'), el('span', { text: q.fed ? '' : String(q.votes) }));
+    vote.replaceChildren(icon(q.fed ? 'lock' : 'up', 'sm'), el('span', { text: q.fed ? '' : String(q.votes) }));
   }
   li.querySelector('.del').hidden = !(q.mine && !q.fed);
 }
@@ -394,25 +395,26 @@ setInterval(tick, 250);
 // ---------- busqueda ----------
 const qInput = $('q');
 let debounce = null;
+// La X es la única forma visible de cerrar: sale con texto o con resultados abiertos.
+function syncClear() { $('qClear').hidden = !qInput.value && $('results').hidden; }
 qInput.addEventListener('input', () => {
-  $('qClear').hidden = !qInput.value;
+  syncClear();
   clearTimeout(debounce);
   const term = qInput.value.trim();
   if (term.length < 2) { searchSeq++; closeResults(); return; }
   debounce = setTimeout(() => doSearch(term), 350);
 });
 qInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { qInput.value = ''; $('qClear').hidden = true; closeResults(); }
+  if (e.key === 'Escape') { qInput.value = ''; closeResults(); }
   if (e.key === 'Enter') { e.preventDefault(); clearTimeout(debounce); const t = qInput.value.trim(); if (t.length >= 2) doSearch(t); qInput.blur(); }
 });
-$('qClear').addEventListener('click', () => { qInput.value = ''; $('qClear').hidden = true; closeResults(); qInput.focus(); });
-$('resultsClose').addEventListener('click', () => closeResults());
+$('qClear').addEventListener('click', () => { qInput.value = ''; closeResults(); qInput.focus(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('results').hidden) closeResults(); });
 document.addEventListener('pointerdown', (e) => {
   if (!$('results').hidden && !$('searchWrap').contains(e.target)) closeResults();
 });
 
-function closeResults() { $('results').hidden = true; $('results').style.maxHeight = ''; searchSeq++; releaseSearchSpace(); }
+function closeResults() { $('results').hidden = true; $('results').style.maxHeight = ''; searchSeq++; releaseSearchSpace(); syncClear(); }
 
 // Con una mano y el teclado abierto: el buscador sube arriba y los resultados caben sobre el teclado.
 function scrollSearchToTop() {
@@ -451,7 +453,7 @@ window.addEventListener('resize', fitResults);
 
 async function doSearch(term) {
   const seq = ++searchSeq; lastTerm = term;
-  const box = $('results'); box.hidden = false; fitResults();
+  const box = $('results'); box.hidden = false; syncClear(); fitResults();
   setText($('resultsInfo'), 'Buscando…');
   $('resultsList').replaceChildren(el('li', { class: 'res-loading' }, el('span', { class: 'spinner' })));
   try {
