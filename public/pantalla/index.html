@@ -48,6 +48,27 @@
         </div>
       </div>
     </aside>
+
+    <section id="sumBand" class="sum-band" aria-label="Resumen de la noche" hidden>
+      <div class="sb-stats">
+        <div><b id="sbSongs">0</b><span>canciones</span></div>
+        <div><b id="sbLikes">0</b><span>likes</span></div>
+        <div><b id="sbVotes">0</b><span>votos</span></div>
+        <div><b id="sbGuests">0</b><span>invitados</span></div>
+      </div>
+      <section id="sbSong" class="sb-card sb-song">
+        <h2>Canción de la noche</h2>
+        <div class="sb-song-row"><img id="sbSongImg" alt="" hidden><div class="sb-song-txt"><p id="sbSongName" class="sb-t ellipsis"></p><p id="sbSongBy" class="muted-t ellipsis"></p><p id="sbSongMeta" class="pink-t ellipsis"></p></div></div>
+      </section>
+      <section id="sbDjCard" class="sb-card sb-dj">
+        <h2>DJ de la noche</h2>
+        <p id="sbDj" class="sb-t ellipsis"></p><p id="sbDjMeta" class="pink-t ellipsis"></p>
+      </section>
+      <section class="sb-card sb-topc">
+        <h2>Top 3</h2>
+        <ol id="sbTop" class="sb-top"></ol>
+      </section>
+    </section>
   </main>
 
   <section id="summary" class="summary" hidden>

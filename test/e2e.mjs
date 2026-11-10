@@ -461,15 +461,60 @@ async function main() {
     await tv.setViewportSize({ width: 1920, height: 1080 }); await sleep(400);
     const small = await smallText('#stage');
     expect(small.length === 0, 'texto por debajo de 24px en #stage: ' + small.join(' | '));
+    // #24: sin resumen no hay franja
+    expect(await tv.evaluate(() => document.getElementById('sumBand').hidden && !document.getElementById('stage').classList.contains('with-band') && document.getElementById('summary').hidden), '#24: sin resumen no hay franja');
+    // #24: los toasts grandes no tapan la marca ni el QR
+    const toastCheck = async (what) => {
+      await api(adminCtx, 'POST', 'admin/control/pause');
+      await api(adminCtx, 'POST', 'admin/control/resume');
+      await tv.waitForSelector('.big-toast', { timeout: 4000 }); await sleep(800);
+      const t = await tv.evaluate(() => {
+        const r = (e) => e.getBoundingClientRect();
+        const hit = (a, b) => !(a.right <= b.left + 1 || a.left >= b.right - 1 || a.bottom <= b.top + 1 || a.top >= b.bottom - 1);
+        const toasts = [...document.querySelectorAll('.big-toast')].map(r);
+        const over = ['.brand', '#qrBlock', '.next-wrap'].filter((sel) => toasts.some((b) => hit(b, r(document.querySelector(sel)))));
+        return { n: toasts.length, over, inside: toasts.every((b) => b.left >= 0 && b.top >= 0 && b.right <= innerWidth && b.bottom <= innerHeight) };
+      });
+      expect(t.n >= 1 && t.over.length === 0 && t.inside, '#24: toast tapa contenido (' + what + '): ' + JSON.stringify(t));
+      await waitFor(async () => (await tv.locator('.big-toast').count()) === 0, { timeout: 9000, msg: 'toast no desaparece' });
+    };
+    await toastCheck('sin resumen');
+    // #24: con la fiesta en marcha el resumen es una franja bajo la vista normal
     await api(adminCtx, 'POST', 'admin/summary/show', { on: true });
     try {
-      await tv.waitForSelector('#summary:not([hidden])', { timeout: 4000 });
+      await tv.waitForSelector('#sumBand:not([hidden])', { timeout: 4000 });
       await sleep(900);
-      const smallSum = await smallText('#summary');
-      expect(smallSum.length === 0, 'texto por debajo de 24px en #summary: ' + smallSum.join(' | '));
+      expect(await tv.evaluate(() => document.getElementById('summary').hidden && !document.getElementById('stage').hidden && document.getElementById('stage').classList.contains('with-band')), '#24: la franja convive con la vista normal y no hay resumen a pantalla completa');
+      const smallSum = await smallText('#stage');
+      expect(smallSum.length === 0, 'texto por debajo de 24px con la franja: ' + smallSum.join(' | '));
+      for (const [w, h, name] of [[1920, 1080, '53-tv-band-1080'], [1280, 720, '54-tv-band-720']]) {
+        await tv.setViewportSize({ width: w, height: h }); await sleep(600);
+        const b = await tv.evaluate(() => {
+          const vis = (sel) => { const e = document.querySelector(sel); const r = e.getBoundingClientRect(); return !e.hidden && !!e.offsetParent && r.width > 0 && r.height > 0; };
+          const sels = ['.cover-big', '.meta', '.brand', '.next-wrap', '#qrBlock', '#sumBand'];
+          const box = (sel) => document.querySelector(sel).getBoundingClientRect();
+          const overlaps = [];
+          for (let i = 0; i < sels.length; i++) for (let j = i + 1; j < sels.length; j++) {
+            const a = box(sels[i]), c = box(sels[j]);
+            if (!(a.right <= c.left + 1 || a.left >= c.right - 1 || a.bottom <= c.top + 1 || a.top >= c.bottom - 1)) overlaps.push(sels[i] + ' x ' + sels[j]);
+          }
+          const off = sels.filter((sel) => { const r = box(sel); return !(r.left >= -1 && r.top >= -1 && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1); });
+          const qr = document.querySelector('#qr').getBoundingClientRect();
+          const list = document.getElementById('next'), lr = list.getBoundingClientRect();
+          const cut = [...list.children].filter((c) => !c.hidden && c.offsetParent).filter((c) => { const r = c.getBoundingClientRect(); return r.bottom - 1.5 > lr.bottom; }).length;
+          return { shown: ['#npTitle', '#qrBlock', '#qrPin', '#sumBand', '#sbDj'].every(vis), listOk: vis('#next') || vis('#nextEmpty'), overlaps, off, qrPx: Math.round(qr.height), qrVh: +(qr.height / innerHeight * 100).toFixed(1), cut, sh: document.documentElement.scrollHeight - innerHeight, sw: document.documentElement.scrollWidth - innerWidth, bandVh: +(box('#sumBand').height / innerHeight * 100).toFixed(1) };
+        });
+        expect(b.shown && b.listOk, '#24: falta algo a la vista con la franja (' + w + 'x' + h + '): ' + JSON.stringify(b));
+        expect(b.overlaps.length === 0 && b.off.length === 0 && b.sh <= 0 && b.sw <= 0 && b.cut === 0, '#24: bloques que se pisan, fuera o con scroll (' + w + 'x' + h + '): ' + JSON.stringify(b));
+        expect(b.qrVh >= 18, '#24: el QR es demasiado pequeño con la franja: ' + JSON.stringify(b));
+        if (w === 1920) await toastCheck('con franja');
+        await shot(tv, name);
+      }
+      await tv.setViewportSize({ width: 1920, height: 1080 }); await sleep(500);
     } finally {
       await api(adminCtx, 'POST', 'admin/summary/show', { on: false });
     }
+    await waitFor(async () => tv.locator('#sumBand').isHidden(), { timeout: 4000, msg: 'franja no se oculta' });
     await tv.waitForSelector('#stage:not([hidden])', { timeout: 4000 });
 
     // #8: «A continuación» muestra solo lo que cabe entero y cuenta el resto en «y N más» (1920x1080, cola real)
@@ -494,6 +539,8 @@ async function main() {
       return { len, ...i };
     };
     const few = await checkList('cola corta');
+    // #24: la lista compacta enseña al menos 3 canciones a 1920x1080 con la cola base
+    expect(few.vis >= 3, '#24: la lista compacta debe enseñar 3 o más: ' + JSON.stringify(few));
     // con sitio de sobra (ventana alta) caben todas: sin «más» y todo visible
     await tv.setViewportSize({ width: 1920, height: 2400 }); await sleep(500);
     const roomy = await checkList('cola corta con sitio de sobra');
@@ -527,6 +574,21 @@ async function main() {
     const back = await checkList('cola de nuevo corta');
     expect(back.len === few.len, 'la cola vuelve a su tamaño: ' + JSON.stringify([few.len, back.len]));
 
+    // #24: « · de X» siempre entero aunque los artistas sean larguísimos
+    await tv.setViewportSize({ width: 1920, height: 1080 }); await sleep(500);
+    const longBy = await tv.evaluate(() => {
+      const li = [...document.querySelectorAll('#next > li')].find((x) => x.querySelector('.n-sub .art'));
+      if (!li) return null;
+      const sub = li.querySelector('.n-sub'), art = sub.querySelector('.art'), by = sub.querySelector('.by');
+      const normalBy = by.textContent;
+      art.textContent = 'Bad Bunny, Jhay Cortez, J Balvin, Rosalía, Ozuna, Anuel AA, Daddy Yankee, Karol G, Feid, Myke Towers';
+      const s = sub.getBoundingClientRect(), b = by.getBoundingClientRect();
+      return { normalBy, byFits: by.scrollWidth <= by.clientWidth + 1, byInside: b.right <= s.right + 1 && b.left >= s.left - 1, artCut: art.scrollWidth > art.clientWidth };
+    });
+    expect(longBy, '#24: hay un elemento normal en «A continuación»');
+    expect(/ · de \S/.test(longBy.normalBy), '#24: «de X» presente: ' + JSON.stringify(longBy.normalBy));
+    expect(longBy.byFits && longBy.byInside, '#24: «de X» entero con artistas largos: ' + JSON.stringify(longBy));
+    expect(longBy.artCut, '#24: los artistas largos se recortan con puntos suspensivos');
     // #8: todo encaja sin recortes a 1920x1080 y 1280x720
     for (const [w, h, name] of [[1920, 1080, '50-tv-1080'], [1280, 720, '51-tv-720']]) {
       await tv.setViewportSize({ width: w, height: h }); await sleep(500);
