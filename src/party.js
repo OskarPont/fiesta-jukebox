@@ -407,7 +407,7 @@ export class Party {
     if (on && !has) np.playLikes.push(guest.id);
     if (!on && has) np.playLikes = np.playLikes.filter((v) => v !== guest.id);
     this.dirty();
-    return { liked: np.playLikes.includes(guest.id), likes: np.playLikes.length + (np.queueLikes || 0) };
+    return { liked: np.playLikes.includes(guest.id), likes: np.playLikes.length };
   }
 
   /** Historial de la fiesta activa (o del ultimo periodo si no hay fiesta). */

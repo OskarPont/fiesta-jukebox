@@ -141,7 +141,7 @@ export function forViewer(common, viewer, ctx) {
   if (common.nowPlaying) {
     const c = common.nowPlaying;
     const { playLikes, ...rest } = c;
-    np = { ...rest, skipVotes: c.skipVotes.length, likes: playLikes.length + c.queueLikes, liked: gid ? playLikes.includes(gid) : false };
+    np = { ...rest, skipVotes: c.skipVotes.length, likes: playLikes.length, liked: gid ? playLikes.includes(gid) : false };
     if (viewer.isAdmin) np.playLikes = playLikes.length; else delete np.queueLikes;
   }
   const out = {
