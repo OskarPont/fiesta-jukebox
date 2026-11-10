@@ -134,6 +134,16 @@ input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
 .dot-s.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
 .ag-main .s { color: var(--muted); font-size: 13px; }
 .ag-btns { display: flex; gap: 6px; }
+.ag-item { position: relative; }
+.ag-item:has(details[open]) { z-index: 20; }
+.ag-sep { list-style: none; margin: 8px 2px 0; font-size: 12.5px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+#card-guests input[type=search] { width: 100%; }
+.row-menu { position: relative; }
+.row-menu > summary { list-style: none; width: 44px; min-height: 44px; padding: 0; font-size: 20px; line-height: 1; }
+.row-menu > summary::-webkit-details-marker { display: none; }
+.row-menu[open] > summary { background: var(--surface-3); }
+.row-menu .menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 30; display: flex; flex-direction: column; gap: 6px; padding: 8px; min-width: 160px; max-width: calc(100vw - 32px); background: var(--surface-3); border: 1px solid var(--line-strong); border-radius: 14px; box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.7); }
+.row-menu .menu .btn { width: 100%; justify-content: flex-start; }
 
 /* historial */
 .ah-item { display: flex; align-items: center; gap: 12px; }
