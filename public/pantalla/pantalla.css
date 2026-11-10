@@ -73,6 +73,8 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .logo.big { font-size: max(64px, 8vh); }
 .fs-hint { position: fixed; right: 2vh; bottom: 1.5vh; font-size: 2.3vh; color: rgba(245, 245, 247, 0.45); transition: opacity 0.6s; pointer-events: none; }
 .fs-hint.gone { opacity: 0; }
+/* con la franja de resumen abajo, el aviso sube arriba a la derecha para no tapar el Top 3 */
+.stage.with-band ~ .fs-hint { top: 1.5vh; bottom: auto; }
 
 /* aviso discreto de fallos del reproductor, arriba a la izquierda, en el margen sobre la carátula */
 .player-note { position: fixed; left: 5vw; top: 1.2vh; z-index: 50; display: inline-flex; align-items: center; gap: 1.2vh; max-width: 40vw; padding: 0.5vh 2.2vh; border-radius: 999px; font-size: 2.3vh; font-weight: 500; color: rgba(245, 245, 247, 0.72); background: rgba(16, 16, 18, 0.72); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
