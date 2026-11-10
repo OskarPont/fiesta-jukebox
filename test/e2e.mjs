@@ -251,17 +251,17 @@ async function main() {
     }
   });
   await step('votos reordenan la cola en todos (C primero)', async () => {
-    const heart = (page, name) => page.locator('#queue .q-item', { hasText: name }).locator('.vote');
-    await heart(g[0], C.name).click();
-    await heart(g[1], C.name).click();
+    const voteBtn = (page, name) => page.locator('#queue .q-item', { hasText: name }).locator('.vote');
+    await voteBtn(g[0], C.name).click();
+    await voteBtn(g[1], C.name).click();
     await waitFor(async () => clean(await queueTitles(g[2]))[0] === C.name, { timeout: 1500, msg: 'C no sube' });
     expect(clean(await queueTitles(g[0]))[0] === C.name, 'orden en g1');
-    expect(await heart(g[2], C.name).isDisabled(), 'no puedes votar tu propia cancion');
+    expect(await voteBtn(g[2], C.name).isDisabled(), 'no puedes votar tu propia cancion');
     // #4: en la cola se vota con la flecha (no el corazon) y el boton lo dice
     const vb = await g[1].locator('#queue .q-item', { hasText: A.name }).locator('.vote').evaluate((b) => ({ up: !!b.querySelector('svg path[d="M12 19V5"]'), heart: !!b.querySelector('svg path[d^="M19 14c1.49"]'), label: b.getAttribute('aria-label') }));
     expect(vb.up && !vb.heart, 'el voto de la cola usa la flecha, no el corazon: ' + JSON.stringify(vb));
     expect(/^(Votar|Quitar mi voto)/.test(vb.label), 'aria-label del voto: ' + vb.label);
-    expect((await heart(g[2], C.name).getAttribute('aria-label')) === 'Votos a tu canción', 'aria-label de la propia canción');
+    expect((await voteBtn(g[2], C.name).getAttribute('aria-label')) === 'Votos a tu canción', 'aria-label de la propia canción');
     await shot(g[0], '12-guest-main-queue', { fullPage: false });
     await shot(g[0], '13-guest-main-queue-full', { fullPage: true });
   });

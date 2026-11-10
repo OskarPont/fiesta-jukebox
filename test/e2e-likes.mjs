@@ -172,8 +172,9 @@ async function main() {
     await mockCmd('speed', 40);
     await waitFor(async () => (await g[0].textContent('#npTitle')).includes(B.name), { timeout: 12000, msg: 'B no suena' });
     await mockCmd('speed', 1);
-    await waitFor(async () => (await g[1].textContent('#btnLike')).trim() === '1', { msg: 'B arranca con 1 like (el de cola)' });
+    await waitFor(async () => (await g[1].textContent('#btnLike')).trim() === '0', { msg: 'B arranca sin likes: el voto de cola no cuenta en el corazón' });
     await g[0].click('#btnLike');
+    await waitFor(async () => (await g[1].textContent('#btnLike')).trim() === '1', { msg: 'B ve 1 like sonando' });
     await waitFor(async () => (await admin.locator('#card-player .lk').first().getAttribute('title').catch(() => '')) === '1 like · 1 voto', { msg: 'admin desglose B' });
   });
   await step('C (de Pau) sin likes; el historial guarda el desglose', async () => {
