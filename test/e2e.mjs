@@ -180,6 +180,66 @@ async function main() {
     const bad = await api(adminCtx, 'PUT', 'admin/settings', { skipVotePct: 500 });
     expect(bad.status === 400, 'rango invalido debe dar 400');
   });
+  await step('admin: ajustes agrupados, condicionales y accesibles', async () => {
+    const st = async () => (await api(adminCtx, 'GET', 'admin/status')).body.settings;
+    const orig = await st();
+    const keys = ['skipMode', 'pauseMode', 'fillerMode', 'maxQueuedPerGuest'];
+    try {
+      const groups = admin.locator('#card-settings details');
+      expect(await groups.count() === 3, 'tres grupos de ajustes');
+      const want = [
+        ['Cola', ['maxQueuedPerGuest', 'addCooldownSec', 'maxDurationMin', 'noRepeatMin'], ['Cola abierta', 'Orden de la cola', 'Permitir canciones explícitas']],
+        ['Controles de los invitados', ['skipVotePct', 'skipVoteMin', 'controlCooldownSec', 'globalControlCooldownSec'], ['Pausar y reanudar', 'Saltar canción']],
+        ['Relleno y clásicos', ['classicsMinScore'], ['Cuando la cola se vacía', 'Actualizar "Clásicos de fiesta"']],
+      ];
+      for (let i = 0; i < 3; i++) {
+        const g = groups.nth(i);
+        expect((await g.locator('> summary').textContent()).trim() === want[i][0], 'título del grupo ' + i);
+        for (const k of want[i][1]) expect(await g.locator(`input#set-${k}`).count() === 1, `${k} está en «${want[i][0]}»`);
+        for (const l of want[i][2]) expect(await g.locator('.set', { hasText: l }).count() >= 1, `«${l}» está en «${want[i][0]}»`);
+      }
+      expect(await groups.nth(0).evaluate((d) => d.open), 'el primer grupo empieza abierto');
+      expect(!(await groups.nth(1).evaluate((d) => d.open)) && !(await groups.nth(2).evaluate((d) => d.open)), 'los otros empiezan cerrados');
+      await groups.nth(1).locator('> summary').click();
+      await groups.nth(2).locator('> summary').click();
+      const row = (k) => admin.locator(`#card-settings .set:has(#set-${k})`);
+      const seg = (label, btn) => admin.locator('#card-settings .set', { hasText: label }).locator('button', { hasText: btn });
+      // votos para saltar solo con «Por votos»
+      await seg('Saltar canción', 'Por votos').click();
+      expect(await row('skipVotePct').isVisible() && await row('skipVoteMin').isVisible(), 'por votos: se ven las filas de votos');
+      await seg('Saltar canción', 'Directo').click();
+      expect(!(await row('skipVotePct').isVisible()) && !(await row('skipVoteMin').isVisible()), 'directo: no se ven las filas de votos');
+      // esperas solo si alguien puede pausar o saltar directo
+      await seg('Pausar y reanudar', 'Solo yo').click();
+      await seg('Saltar canción', 'Solo yo').click();
+      expect(!(await row('controlCooldownSec').isVisible()) && !(await row('globalControlCooldownSec').isVisible()), 'solo yo: no se ven las esperas');
+      await seg('Saltar canción', 'Directo').click();
+      expect(await row('controlCooldownSec').isVisible() && await row('globalControlCooldownSec').isVisible(), 'directo: se ven las esperas');
+      // puntos de clásico solo con clásicos
+      await seg('Cuando la cola se vacía', 'Mi playlist de Spotify').click();
+      expect(!(await row('classicsMinScore').isVisible()), 'playlist: no se ven los puntos');
+      await seg('Cuando la cola se vacía', 'Clásicos de mis fiestas').click();
+      expect(await row('classicsMinScore').isVisible(), 'clásicos: se ven los puntos');
+      // salidas accesibles
+      const bad = await admin.evaluate(() => [...document.querySelectorAll('#card-settings output')].filter((o) => { const r = document.getElementById(o.getAttribute('for') || ''); return !r || r.type !== 'range'; }).length);
+      expect(bad === 0, 'cada output apunta a su range');
+      const ranges = await admin.evaluate(() => [...document.querySelectorAll('#card-settings input[type=range]')].map((r) => [r.id, r.getAttribute('aria-valuetext')]));
+      expect(ranges.length === 9 && ranges.every(([id, t]) => id && t), 'cada range con aria-valuetext: ' + JSON.stringify(ranges));
+      // guardar un range
+      const next = orig.maxQueuedPerGuest === 6 ? 7 : 6;
+      await watchToasts(admin);
+      await admin.locator('#set-maxQueuedPerGuest').fill(String(next));
+      await admin.locator('#set-maxQueuedPerGuest').dispatchEvent('change');
+      await waitFor(async () => (await seenToasts(admin)).includes('Ajustes guardados'), { msg: 'falta el aviso «Ajustes guardados»' });
+      expect((await st()).maxQueuedPerGuest === next, 'el range se guarda');
+      expect(await admin.locator('#set-maxQueuedPerGuest').getAttribute('aria-valuetext') === String(next), 'aria-valuetext al día');
+      await groups.nth(1).locator('> summary').click();
+      await groups.nth(2).locator('> summary').click();
+      await admin.locator('#card-settings').screenshot({ path: path.join(SHOTS, '62-admin-ajustes.png') });
+    } finally {
+      await api(adminCtx, 'PUT', 'admin/settings', Object.fromEntries(keys.map((k) => [k, orig[k]])));
+    }
+  });
 
   console.log('\nB. Invitados: entrada');
   for (const n of [0, 1, 2]) { const c = await newCtx(browser, 'mobile'); gctx.push(c); const p = await c.newPage(); watch(p, `g${n + 1}`); g.push(p); }
