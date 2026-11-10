@@ -284,7 +284,10 @@ async function main() {
         const sh0 = await g[0].evaluate(() => document.documentElement.scrollHeight);
         await g[0].focus('#q');
         await sleep(700); // la animacion suave termina
-        await waitFor(async () => Math.abs(await g[0].evaluate(() => document.getElementById('searchWrap').getBoundingClientRect().top)) <= 2, { timeout: 3000, msg: `buscador no sube arriba (${w}x${h}) ` + JSON.stringify(await g[0].evaluate(() => ({ top: document.getElementById('searchWrap').getBoundingClientRect().top, sy: scrollY, sh: document.documentElement.scrollHeight, ih: innerHeight }))) });
+        const pos = () => g[0].evaluate(() => ({ top: document.getElementById('searchWrap').getBoundingClientRect().top, sy: scrollY, sh: document.documentElement.scrollHeight, ih: innerHeight }));
+        try {
+          await waitFor(async () => Math.abs((await pos()).top) <= 2, { timeout: 3000, msg: 'buscador no sube arriba' });
+        } catch (e) { throw new Error(`${e.message} (${w}x${h}) ` + JSON.stringify(await pos())); }
         await g[0].fill('#q', T(4).name.toLowerCase());
         await g[0].locator('#resultsList .res').first().waitFor({ timeout: 4000 });
         await g[0].setViewportSize({ width: w, height: kb });
@@ -305,9 +308,25 @@ async function main() {
         const sh1 = await g[0].evaluate(() => document.documentElement.scrollHeight);
         expect(Math.abs(sh1 - sh0) <= 2, `el espacio extra no se quita (${w}x${h}): antes ${sh0}, despues ${sh1}`);
       }
+      // regresion: con la cola desplazada el buscador ya esta fijo arriba y enfocarlo no debe mover la pagina
+      await g[0].setViewportSize({ width: 375, height: 667 });
+      await g[0].evaluate(() => {
+        document.activeElement?.blur();
+        const tall = document.createElement('div'); tall.id = 'e2eTall'; tall.style.height = '1500px';
+        document.getElementById('queue').after(tall);
+        const a = document.getElementById('searchAnchor').getBoundingClientRect().top + scrollY;
+        window.scrollTo({ top: a + 150, behavior: 'instant' });
+      });
+      await sleep(200);
+      const before = await g[0].evaluate(() => scrollY);
+      expect((await g[0].evaluate(() => Math.abs(document.getElementById('searchWrap').getBoundingClientRect().top))) <= 2, 'preparacion: buscador deberia estar fijo arriba');
+      await g[0].focus('#q');
+      await sleep(700);
+      const after = await g[0].evaluate(() => ({ sy: scrollY, top: document.getElementById('searchWrap').getBoundingClientRect().top }));
+      expect(Math.abs(after.sy - before) <= 2 && Math.abs(after.top) <= 2, `enfocar movio la pagina con la cola desplazada: scrollY ${before} -> ${after.sy}, top ${after.top}`);
     } finally {
       await g[0].setViewportSize(orig);
-      await g[0].evaluate(() => { window.scrollTo(0, 0); });
+      await g[0].evaluate(() => { document.getElementById('e2eTall')?.remove(); document.activeElement?.blur(); window.scrollTo(0, 0); });
     }
   });
   await step('API: limite por invitado y duplicados', async () => {
