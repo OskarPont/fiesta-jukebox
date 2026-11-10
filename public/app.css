@@ -116,6 +116,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: 70dvh; z-i
 .q-item.fresh { animation: rise 0.45s var(--ease-out) both; }
 .q-main { flex: 1; min-width: 0; }
 .q-by { margin-top: 2px; font-size: 12.5px; color: var(--faint); }
+.q-by.own { color: var(--text); font-weight: 600; }
 .q-item.fed .q-by { color: var(--accent); font-weight: 600; }
 .q-actions { display: flex; align-items: center; gap: 0; flex: none; }
 .vote { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 56px; height: 44px; padding: 0 10px; border-radius: 999px; border: 1px solid transparent; background: transparent; color: var(--muted); font-weight: 650; font-size: 15px; cursor: pointer; font-variant-numeric: tabular-nums; touch-action: manipulation; transition: color 0.15s, background 0.15s; }
