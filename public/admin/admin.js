@@ -646,8 +646,7 @@ cards.history = (() => {
     const s1 = sm.songOfNight;
     sumBox.append(
       row('Canción de la noche', s1 ? `${s1.name} · ${artistsText(s1.artists)}` : 'Sin likes ni votos todavía', s1 ? `${plural(s1.playLikes, 'like', 'likes')} · ${plural(s1.queueLikes, 'voto', 'votos')}` : null),
-      row('Mejor DJ', sm.bestDj ? sm.bestDj.name : 'Nadie todavía', sm.bestDj ? `${plural(sm.bestDj.likes, 'like o voto', 'likes y votos')} en ${plural(sm.bestDj.songs, 'canción', 'canciones')}` : null),
-      row('Más canciones puestas', sm.mostActive ? sm.mostActive.name : 'Nadie todavía', sm.mostActive ? plural(sm.mostActive.songs, 'canción', 'canciones') : null));
+      row('DJ de la noche', sm.bestDj ? sm.bestDj.name : 'Nadie todavía', sm.bestDj ? `${plural(sm.bestDj.likes, 'like', 'likes')} · ${plural(sm.bestDj.votes, 'voto', 'votos')}` : null));
   }
 
   async function fetchRemote(id) {
