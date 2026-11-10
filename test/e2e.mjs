@@ -718,6 +718,93 @@ async function main() {
     expect(w <= 392, 'sin scroll horizontal en admin movil: ' + w + ' ' + off.join(' '));
     await mctx.close();
   });
+  await step('admin: modo fiesta, lo esencial arriba, PIN a mano y rejilla estable (#9)', async () => {
+    const tops = () => admin.evaluate(() => Object.fromEntries([...document.querySelectorAll('#cards .acard')].map((c) => { const r = c.getBoundingClientRect(); return [c.id, { x: Math.round(r.left), top: Math.round(r.top + scrollY), w: Math.round(r.width) }]; })));
+    const domOrder = () => admin.evaluate(() => [...document.querySelectorAll('#cards .acard')].map((c) => c.id.replace('card-', '')));
+    const state = async () => (await api(adminCtx, 'GET', 'admin/status')).body;
+    const prev = (await state()).settings;
+    const extra = [];
+    try {
+      // ---- móvil 390x844 ----
+      await admin.setViewportSize({ width: 390, height: 844 }); await sleep(400);
+      await admin.evaluate(() => scrollTo(0, 0));
+      const m = await tops();
+      expect(m['card-player'].top < m['card-queue'].top && m['card-queue'].top < m['card-party'].top, 'móvil: reproducción, cola y luego fiesta: ' + JSON.stringify(m));
+      expect(m['card-queue'].top <= 844 * 1.5, 'móvil: la cola empieza dentro de 1,5 pantallas: ' + m['card-queue'].top);
+      // el orden de lectura (DOM, y por tanto el foco) es exactamente el del modo fiesta, y coincide con el visual
+      const want = ['player', 'queue', 'party', 'guests', 'history', 'classics', 'settings', 'device', 'spotify'];
+      const dom = await domOrder();
+      expect(dom.join() === want.join(), 'móvil: orden del DOM: ' + dom.join());
+      const visual = Object.entries(m).sort((a, b) => a[1].top - b[1].top).map(([id]) => id.replace('card-', ''));
+      expect(visual.join() === want.join(), 'móvil: orden visual: ' + visual.join());
+      // cabecera recogida y sin desbordar
+      const head = await admin.evaluate(() => {
+        const h = document.querySelector('.a-top').getBoundingClientRect();
+        const out = [...document.querySelectorAll('.a-top *')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 2 && (r.right > innerWidth + 1 || r.left < -1); }).map((e) => e.tagName + '.' + e.className);
+        return { h: Math.round(h.height), out, sw: document.documentElement.scrollWidth };
+      });
+      expect(head.sw <= 392 && !head.out.length, 'móvil: la cabecera no desborda: ' + JSON.stringify(head));
+      expect(head.h <= 140, 'móvil: la cabecera no pasa de dos líneas de estado: ' + head.h);
+      // línea de estado, igual que el estado del servidor
+      const s1 = await state();
+      const line = (await admin.textContent('#topChips')) || '';
+      expect(line.includes('Spotify conectado'), 'estado: Spotify conectado: ' + line);
+      expect(s1.player.deviceName && line.includes(s1.player.deviceName), 'estado: dispositivo ' + s1.player.deviceName + ': ' + line);
+      const nAct = s1.guests.filter((x) => x.active && !x.banned).length, nQ = (await mockState()).state.queue.length;
+      expect(nAct >= 2 && line.includes(`${nAct} activos`), `estado: ${nAct} activos: ` + line);
+      expect(nQ >= 1 && line.includes(`${nQ} en cola`), `estado: ${nQ} en cola: ` + line);
+      expect(await admin.locator('#topChips .chip').count() === 4, 'estado: cuatro chips');
+      // PIN a mano: visible, con el PIN, y lleva a la tarjeta
+      const pj = admin.locator('#pinJump');
+      expect(await pj.isVisible(), 'el enlace del PIN se ve');
+      expect((await pj.textContent()).trim() === `PIN ${pin}`, 'el enlace enseña el PIN: ' + await pj.textContent());
+      expect(/PIN y QR/.test(await pj.getAttribute('aria-label')), 'aria-label del enlace del PIN');
+      const inView = () => admin.evaluate(() => { const r = document.querySelector('#card-party').getBoundingClientRect(); const hb = document.querySelector('.a-top').getBoundingClientRect().bottom; return r.top >= hb - 1 && r.top < innerHeight * 0.6; });
+      expect(!(await inView()), 'antes de pulsar, la tarjeta Fiesta queda fuera de la vista');
+      await shot(admin, '60-admin-fiesta-movil', { fullPage: false });
+      await pj.click();
+      await waitFor(inView, { timeout: 3000, msg: 'el PIN de la cabecera no lleva a la tarjeta Fiesta' });
+      expect(await admin.evaluate(() => document.activeElement?.id) === 'card-party', 'el foco pasa a la tarjeta Fiesta');
+      await admin.evaluate(() => scrollTo(0, 0));
+
+      // ---- escritorio 1440x900 ----
+      await admin.setViewportSize({ width: 1440, height: 900 }); await sleep(400);
+      await admin.evaluate(() => scrollTo(0, 0));
+      expect(await admin.evaluate(() => getComputedStyle(document.querySelector('#cards')).columnCount) === 'auto', 'sin column-count');
+      const d0 = await tops();
+      expect(d0['card-player'].top < 900 && d0['card-queue'].top < 900, 'escritorio: reproducción y cola empiezan en la primera pantalla: ' + JSON.stringify(d0));
+      const xs = [...new Set(Object.values(d0).map((r) => r.x))];
+      expect(xs.length === 2, 'escritorio: dos columnas: ' + xs.join());
+      const colOf = (r) => (r.x === Math.min(...xs) ? 'a' : 'b');
+      const cols = { a: [], b: [] };
+      for (const [id, r] of Object.entries(d0).sort((a, b) => a[1].top - b[1].top)) cols[colOf(r)].push(id.replace('card-', ''));
+      expect(cols.a.join() === 'player,queue,guests' && cols.b.join() === 'party,history,classics,settings,device,spotify', 'escritorio: reparto por columnas: ' + JSON.stringify(cols));
+      // el DOM baja por la primera columna y luego por la segunda
+      expect((await domOrder()).join() === [...cols.a, ...cols.b].join(), 'escritorio: el DOM sigue las columnas');
+      // la cola crece y ninguna tarjeta cambia de columna
+      await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: 10, addCooldownSec: 0, noRepeatMin: 0 });
+      const n0 = await admin.locator('#card-queue .aq-item').count();
+      for (const [i, gi] of [[34, 0], [35, 1], [36, 0]]) {
+        const t = T(i);
+        await api(gctx[gi], 'GET', `search?q=${encodeURIComponent(t.name.toLowerCase())}`);
+        const r = await api(gctx[gi], 'POST', 'queue', { uri: t.uri });
+        expect(r.status === 200, 'añadir a la cola: ' + JSON.stringify(r));
+        extra.push(r.body.item.qid);
+      }
+      await waitFor(async () => (await admin.locator('#card-queue .aq-item').count()) === n0 + 3, { msg: 'las canciones nuevas no llegan al panel' });
+      const d1 = await tops();
+      for (const id of Object.keys(d0)) expect(d1[id].x === d0[id].x && d1[id].w === d0[id].w, `escritorio: ${id} cambia de columna: ${JSON.stringify([d0[id], d1[id]])}`);
+      expect(d1['card-guests'].top > d0['card-guests'].top, 'la cola ha crecido de verdad');
+      expect((await admin.textContent('#topChips')).includes(`${n0 + 3} en cola`), 'estado: la cola sube en la línea de estado');
+      await shot(admin, '61-admin-fiesta-escritorio', { fullPage: false });
+    } finally {
+      for (const qid of extra) await api(adminCtx, 'DELETE', `admin/queue/${qid}`);
+      await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: prev.maxQueuedPerGuest, addCooldownSec: prev.addCooldownSec, noRepeatMin: prev.noRepeatMin });
+      await admin.setViewportSize({ width: 1280, height: 900 });
+      await admin.evaluate(() => scrollTo(0, 0));
+    }
+    await waitFor(async () => (await admin.locator('#card-queue .aq-item').count()) === 3, { msg: 'la cola vuelve a sus 3 canciones' });
+  });
   await step('invitado: sin scroll horizontal a 360 px', async () => {
     const c = await newCtx(browser, 'mobile'); const p = await c.newPage(); watch(p, 'g-360');
     await p.setViewportSize({ width: 360, height: 740 });
