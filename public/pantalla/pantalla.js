@@ -41,6 +41,7 @@ setInterval(jiggle, 3 * 60 * 1000);
 function render(st) {
   state = st; syncClock(st.serverNow);
   const active = st.party.active;
+  renderPlayerNote(st, active);
   const sum = st.admin?.showSummary && st.admin.summary;
   $('summary').hidden = !sum;
   if (sum) { renderSummary(st.admin.summary); renderSumNow(active ? st.nowPlaying : null); }
@@ -74,16 +75,55 @@ function render(st) {
   reconcile($('next'), q, (x) => x.qid, createItem, updateItem);
   $('nextEmpty').hidden = st.queue.length > 0;
   $('next').hidden = st.queue.length === 0;
-  const more = st.queue.length - q.length;
-  $('nextMore').hidden = more <= 0; setText($('nextMore'), `y ${more} más en la cola`);
+  queueTotal = st.queue.length;
 
   const pin = st.admin?.pin;
   setText($('qrPin'), pin || '');
   setText($('qrUrl'), st.publicHost);
   const qr = $('qr'); const want = `../api/admin/qr.svg?pin=${pin}`;
   if (pin && qr.dataset.w !== want) { qr.dataset.w = want; qr.src = want; }
+  updateOverflow();
   tick();
 }
+
+/** Aviso discreto cuando el reproductor falla; mismas frases que ven los invitados. */
+function renderPlayerNote(st, active) {
+  const status = st.player?.status;
+  let msg = '';
+  if (active) {
+    if (status === 'rate_limited') msg = 'Spotify va saturado, un momento…';
+    else if (['no_device', 'disconnected', 'not_configured', 'premium_required'].includes(status)) msg = 'La música está parada, avisando al anfitrión…';
+  }
+  const n = $('playerNote');
+  setText(n, msg); n.hidden = !msg;
+}
+
+let queueTotal = 0;
+
+/**
+ * «A continuación» muestra solo las canciones que caben enteras y cuenta el resto en «y N más».
+ * Se mide siempre con las 6 a la vista y la línea «más» reservada, y luego se ocultan las sobrantes.
+ */
+function updateOverflow() {
+  const list = $('next'), more = $('nextMore');
+  const items = [...list.children];
+  if (!queueTotal || !items.length) { more.hidden = true; list.classList.remove('overflow'); return; }
+  for (const li of items) li.hidden = false;
+  // layout puro (offsetTop/offsetHeight): scrollHeight/getBoundingClientRect cuentan el translateY de la animación de entrada
+  const fit = () => { let n = 0; for (const c of items) { if (c.offsetTop + c.offsetHeight <= list.clientHeight + 1) n++; else break; } return n; };
+  // con la línea «más» reservada (si no hiciera falta, quitarla solo deja más sitio)
+  more.hidden = false; setText(more, 'y 0 más en la cola');
+  let visible = fit();
+  if (visible >= items.length && queueTotal <= items.length) more.hidden = true;
+  // ni una cabe entera: se deja la primera bajo la máscara en vez de una lista vacía
+  const cut = visible === 0;
+  if (cut) visible = 1;
+  items.forEach((li, i) => { li.hidden = i >= visible; });
+  const rest = queueTotal - visible;
+  more.hidden = rest <= 0; if (rest > 0) setText(more, `y ${rest} más en la cola`);
+  list.classList.toggle('overflow', cut);
+}
+window.addEventListener('resize', updateOverflow);
 
 function renderSummary(s) {
   const n = (x) => String(x ?? 0);
