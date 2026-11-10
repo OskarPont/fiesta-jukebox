@@ -109,10 +109,17 @@ export function liveProgress(np, scale = 1) {
 }
 
 // ---------- toasts ----------
-export function toast(text, kind = 'info', ms = 3600) {
+/** `action` opcional: { label, onclick(toastEl) }. El toast con accion recibe clics y el boton es alcanzable con teclado. */
+export function toast(text, kind = 'info', ms = 3600, action = null) {
   let host = document.getElementById('toasts');
   if (!host) { host = el('div', { id: 'toasts', 'aria-live': 'polite' }); document.body.append(host); }
-  const t = el('div', { class: `toast ${kind}`, text });
+  const t = el('div', { class: `toast ${kind}${action ? ' has-action' : ''}` });
+  t.append(el('span', { text }));
+  if (action) {
+    const b = el('button', { type: 'button', class: 'toast-action', text: action.label });
+    b.addEventListener('click', () => action.onclick(t));
+    t.append(b);
+  }
   host.append(t);
   while (host.children.length > 3) host.firstChild.remove();
   setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 260); }, ms);

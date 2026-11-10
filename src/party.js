@@ -12,6 +12,7 @@ export class PartyError extends Error {
 const ACTIVE_MS = 10 * 60 * 1000;
 const KNOWN_TTL_MS = 60 * 60 * 1000;
 const HISTORY_MAX = 500;
+const RESTORE_TTL_MS = 30 * 1000;
 const FAREWELL_TTL_MS = 24 * 60 * 60 * 1000;
 
 const SETTING_RULES = {
@@ -66,6 +67,7 @@ export class Party {
     this.s = state;
     this.now = now;
     this.dirty = onDirty;
+    this.lastRemoved = null;      // { item, at } de la última baja del anfitrión (solo memoria)
     this.connected = new Map();   // guestId -> nº conexiones SSE
     this.known = new Map();       // trackId -> {meta, at}
     this.pinFails = [];
@@ -340,8 +342,27 @@ export class Party {
     if (item.fed) throw new PartyError(409, 'fed', 'Esa canción ya está lista en Spotify y no se puede quitar.');
     if (guest && item.addedBy.id !== guest.id) throw new PartyError(403, 'forbidden', 'Solo puedes quitar tus canciones.');
     this.s.queue = this.s.queue.filter((q) => q !== item);
+    // Solo la baja del anfitrión se puede deshacer; vive en memoria, no se persiste.
+    if (!guest) this.lastRemoved = { item, at: this.now() };
     this.dirty();
     return item;
+  }
+
+  /**
+   * Deshace la última baja del anfitrión (30 s). Se devuelve el MISMO objeto, con votos,
+   * addedAt, manual y addedBy, así orderedQueue() la coloca donde estaba. Si hubo un
+   * adminReorder entre medias, los `manual` pueden coincidir con los de otros items; es
+   * aceptable (el orden entre empates queda estable por el sort).
+   */
+  restoreTrack(qid) {
+    const lr = this.lastRemoved;
+    if (!lr || lr.item.qid !== qid || this.now() - lr.at > RESTORE_TTL_MS || this.findItem(qid)) {
+      throw new PartyError(409, 'cant_restore', 'Ya no se puede deshacer.');
+    }
+    this.s.queue.push(lr.item);
+    this.lastRemoved = null;
+    this.dirty();
+    return lr.item;
   }
 
   vote(guest, qid, on = true) {

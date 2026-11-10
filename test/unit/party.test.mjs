@@ -238,3 +238,60 @@ test('persistencia atomica y recuperacion de JSON corrupto', () => {
   if (process.platform !== 'win32') assert.equal(fs.statSync(path.join(dir, 'spotify.json')).mode & 0o777, 0o600); // Windows no tiene permisos POSIX
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('deshacer baja del anfitrion: vuelve al mismo puesto (votos y manual)', () => {
+  const { party, join, learn, tr, clock } = mk();
+  const a = join('A'); const b = join('B'); const c = join('C');
+  learn(1, 2, 3, 4);
+  const i1 = party.addTrack(a, tr(1).uri); clock.t += 10;
+  const i2 = party.addTrack(b, tr(2).uri); clock.t += 10;
+  const i3 = party.addTrack(c, tr(3).uri); clock.t += 10;
+  party.vote(a, i3.qid); party.vote(b, i3.qid);
+  const before = party.orderedQueue().map((x) => x.name);
+  assert.deepEqual(before, ['T3', 'T1', 'T2']);
+  party.removeTrack(i3.qid, null);
+  assert.deepEqual(party.orderedQueue().map((x) => x.name), ['T1', 'T2']);
+  const back = party.restoreTrack(i3.qid);
+  assert.equal(back, i3);
+  assert.equal(back.votes.length, 2);
+  assert.deepEqual(party.orderedQueue().map((x) => x.name), before);
+  // con manual
+  party.adminReorder([i2.qid, i1.qid, i3.qid]);
+  const manual = party.orderedQueue().map((x) => x.name);
+  assert.deepEqual(manual, ['T2', 'T1', 'T3']);
+  party.removeTrack(i1.qid, null);
+  party.restoreTrack(i1.qid);
+  assert.deepEqual(party.orderedQueue().map((x) => x.name), manual);
+  assert.equal(party.lastRemoved, null);
+});
+
+test('deshacer baja: falla a los 30 s, sin baja previa, con otro qid o si ya esta en la cola', () => {
+  const { party, join, learn, tr, clock } = mk();
+  const a = join('A');
+  learn(1, 2);
+  const i1 = party.addTrack(a, tr(1).uri); clock.t += 10;
+  const i2 = party.addTrack(a, tr(2).uri);
+  throwsCode(() => party.restoreTrack(i1.qid), 'cant_restore');
+  party.removeTrack(i1.qid, null);
+  throwsCode(() => party.restoreTrack(i2.qid), 'cant_restore');
+  clock.t += 30_001;
+  throwsCode(() => party.restoreTrack(i1.qid), 'cant_restore');
+  party.removeTrack(i2.qid, null);
+  clock.t += 30_000;
+  party.restoreTrack(i2.qid); // justo en el limite aun vale
+  throwsCode(() => party.restoreTrack(i2.qid), 'cant_restore');
+  // ya en la cola: duplicado de qid
+  party.removeTrack(i2.qid, null);
+  party.s.queue.push({ ...i2 });
+  throwsCode(() => party.restoreTrack(i2.qid), 'cant_restore');
+});
+
+test('la baja de un invitado no se puede deshacer', () => {
+  const { party, join, learn, tr } = mk();
+  const a = join('A');
+  learn(1);
+  const i1 = party.addTrack(a, tr(1).uri);
+  party.removeTrack(i1.qid, a);
+  assert.equal(party.lastRemoved, null);
+  throwsCode(() => party.restoreTrack(i1.qid), 'cant_restore');
+});

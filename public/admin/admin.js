@@ -43,6 +43,8 @@ function confirmButton(label, { ico, cls = 'btn-danger', ask = '¿Seguro?', oncl
   b.addEventListener('click', async () => {
     if (!armed) {
       b.querySelector('span').textContent = ask;
+      const live = $('srLive');
+      if (live) { live.textContent = ''; requestAnimationFrame(() => { live.textContent = ask; }); }
       armed = setTimeout(() => { armed = null; b.querySelector('span').textContent = label; }, 3000);
       return;
     }
@@ -424,20 +426,65 @@ cards.queue = (() => {
   const clear = confirmButton('Vaciar cola', { ico: 'trash', ask: '¿Vaciar toda?', onclick: async () => { await api('admin/queue/clear', { method: 'POST' }); } });
   clear.classList.add('btn-sm');
   c.root.querySelector('header').append(clear);
-  c.body.append(list, empty, el('p', { class: 'hint', text: 'Arrastra el asa para cambiar el orden. Al mover algo a mano, deja de depender de los votos.' }));
+  const live = el('p', { class: 'sr-only', id: 'queueLive', 'aria-live': 'polite' });
+  c.body.append(list, empty, live, el('p', { class: 'hint', text: 'Arrastra el asa para cambiar el orden. Al mover algo a mano, deja de depender de los votos.' }));
+
+  /** Filas movibles (sin las ya enviadas a Spotify), en el orden actual del DOM. */
+  const movable = () => [...list.children].filter((x) => !x.classList.contains('fed'));
+  /** Anuncia «título, puesto N de M»: N y M cuentan solo las filas movibles (sin las «a continuación»), según `order`, el orden enviado. */
+  function announce(li, order) {
+    live.textContent = `${li.querySelector('.t').textContent}, puesto ${order.indexOf(li) + 1} de ${order.length}`;
+  }
 
   function create() {
     const li = el('li', { class: 'aq-item' },
-      el('span', { class: 'grip', title: 'Arrastrar', role: 'img', 'aria-label': 'Arrastrar para reordenar' }, icon('grip')),
+      el('button', { class: 'grip', type: 'button', title: 'Arrastrar o usar flechas arriba y abajo' }, icon('grip')),
       el('img', { alt: '' }),
       el('div', { class: 'aq-main' }, el('div', { class: 't ellipsis' }), el('div', { class: 's ellipsis' })),
       el('div', { class: 'aq-btns' },
         el('span', { class: 'votes-tag' }),
         el('button', { class: 'icon-btn top', type: 'button', title: 'Subir arriba', 'aria-label': 'Poner la primera' }, icon('up')),
         el('button', { class: 'icon-btn del', type: 'button', title: 'Quitar', 'aria-label': 'Quitar de la cola' }, icon('trash'))));
-    li.querySelector('.top').addEventListener('click', async () => { try { await api(`admin/queue/${encodeURIComponent(li.dataset.key)}/top`, { method: 'POST' }); } catch (e) { toast(e.message, 'error'); } });
-    li.querySelector('.del').addEventListener('click', async () => { try { await api(`admin/queue/${encodeURIComponent(li.dataset.key)}`, { method: 'DELETE' }); } catch (e) { toast(e.message, 'error'); } });
-    attachDrag(li, list);
+    li.querySelector('.top').addEventListener('click', async () => {
+      try {
+        await api(`admin/queue/${encodeURIComponent(li.dataset.key)}/top`, { method: 'POST' });
+        announce(li, [li, ...movable().filter((x) => x !== li)]);
+      } catch (e) { toast(e.message, 'error'); }
+    });
+    li.querySelector('.del').addEventListener('click', async () => {
+      const title = li.querySelector('.t').textContent;
+      const qid = li.dataset.key;
+      try {
+        await api(`admin/queue/${encodeURIComponent(qid)}`, { method: 'DELETE' });
+        toast(`Quitada: ${title}`, 'ok', 8000, {
+          label: 'Deshacer',
+          onclick: async (t) => {
+            try {
+              await api(`admin/queue/${encodeURIComponent(qid)}/restore`, { method: 'POST' });
+              t.remove();
+              toast('Restaurada', 'ok', 2000);
+            } catch (e) { t.remove(); toast(e.message, 'error', 5000); }
+          },
+        });
+      } catch (e) { toast(e.message, 'error'); }
+    });
+    li.querySelector('.grip').addEventListener('keydown', (ev) => {
+      if (ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown') return;
+      ev.preventDefault();
+      const items = movable();
+      const i = items.indexOf(li);
+      const j = i + (ev.key === 'ArrowUp' ? -1 : 1);
+      if (i < 0 || j < 0 || j >= items.length) return;
+      const order = items.slice();
+      order.splice(i, 1); order.splice(j, 0, li);
+      // aplica ya el nuevo orden (como al arrastrar) y conserva el foco en el asa
+      const feds = [...list.children].filter((x) => x.classList.contains('fed'));
+      for (const n of [...feds, ...order]) list.append(n);
+      li.querySelector('.grip').focus();
+      announce(li, order);
+      api('admin/queue/reorder', { method: 'POST', body: { qids: order.map((x) => x.dataset.key) } }).catch((err) => toast(err.message, 'error'));
+    });
+    attachDrag(li, list, announce);
     return li;
   }
   function upd(li, q) {
@@ -447,7 +494,9 @@ cards.queue = (() => {
     setText(li.querySelector('.s'), `${artistsText(q.artists)} · de ${q.addedBy.name}`);
     const vt = li.querySelector('.votes-tag');
     vt.replaceChildren(); if (q.votes) vt.append(icon('up', 'sm'), String(q.votes));
-    li.querySelector('.grip').hidden = q.fed;
+    const g = li.querySelector('.grip');
+    g.hidden = q.fed;
+    g.setAttribute('aria-label', `Mover ${q.name}. Flechas arriba y abajo para cambiar el puesto`);
     li.querySelector('.top').hidden = q.fed;
     li.querySelector('.del').hidden = q.fed;
     if (q.fed && !li.querySelector('.fed-chip')) li.querySelector('.aq-btns').prepend(el('span', { class: 'chip accent fed-chip', text: 'A continuación' }));
@@ -457,7 +506,9 @@ cards.queue = (() => {
     root: c.root,
     update(s) {
       if (dragging) return;
+      const focused = list.contains(document.activeElement) && document.activeElement.classList.contains('grip') ? document.activeElement : null;
       reconcile(list, s.queue, (q) => q.qid, create, upd);
+      if (focused && document.activeElement !== focused && focused.isConnected) focused.focus();
       empty.hidden = s.queue.length > 0; list.hidden = s.queue.length === 0;
       clear.hidden = s.queue.length === 0;
       c.sub.textContent = `${s.queue.length} canciones`;
@@ -466,7 +517,7 @@ cards.queue = (() => {
 })();
 
 /** Reordenar arrastrando con pointer events (vale para raton y tactil). */
-function attachDrag(li, list) {
+function attachDrag(li, list, announce) {
   const grip = li.querySelector('.grip');
   grip.addEventListener('pointerdown', (e) => {
     if (e.button !== undefined && e.button > 0) return;
@@ -510,7 +561,7 @@ function attachDrag(li, list) {
       for (const n of [...fedEls, ...order]) list.append(n);
       dragging = false;
       if (newIdx !== idx0) {
-        try { await api('admin/queue/reorder', { method: 'POST', body: { qids: order.map((x) => x.dataset.key) } }); }
+        try { await api('admin/queue/reorder', { method: 'POST', body: { qids: order.map((x) => x.dataset.key) } }); announce(li, order); }
         catch (err) { toast(err.message, 'error'); }
       }
       if (pendingState) { const s = pendingState; pendingState = null; applyState(s); }
