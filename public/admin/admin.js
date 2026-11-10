@@ -11,8 +11,14 @@ let devicesError = '';
 let dragging = false;
 let pendingState = null;
 
-setIcon($('logout'), 'logout'); $('logout').append(' Salir');
-$('openScreen').append(icon('expand', 'sm'), ' Abrir pantalla');
+setIcon($('logout'), 'logout'); $('logout').append(el('span', { class: 'lbl', text: 'Salir' }));
+$('openScreen').append(icon('expand', 'sm'), el('span', { class: 'lbl', text: 'Abrir pantalla' }));
+// atajo al PIN y al QR: con la fiesta en marcha la tarjeta «Fiesta» ya no va la primera
+$('pinJump').addEventListener('click', () => {
+  const target = cards.party.root;
+  target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  target.focus({ preventScroll: true });
+});
 
 // ---------- helpers de UI ----------
 function run(btn, fn, { okMsg } = {}) {
@@ -49,7 +55,7 @@ function confirmButton(label, { ico, cls = 'btn-danger', ask = '¿Seguro?', oncl
 function card(title, id) {
   const sub = el('span', { class: 'sub' });
   const body = el('div', { class: 'stack' });
-  const root = el('section', { class: 'card acard', id }, el('header', {}, el('h2', { text: title }), sub), body);
+  const root = el('section', { class: 'card acard', id, tabindex: '-1', 'aria-labelledby': `${id}-h` }, el('header', {}, el('h2', { id: `${id}-h`, text: title }), sub), body);
   return { root, body, sub };
 }
 function seg(options, onChange) {
@@ -748,26 +754,81 @@ cards.classics = (() => {
 })();
 
 // ---------- orden de tarjetas ----------
+// Cada disposicion tiene un orden de lectura (movil, una columna) y un reparto fijo en dos columnas
+// (escritorio). Las columnas son contenedores reales: una tarjeta que crece no hace saltar a las demas.
+const LAYOUTS = {
+  // fiesta en marcha: lo que se toca cada pocos minutos, arriba
+  fiesta: {
+    order: ['player', 'queue', 'party', 'guests', 'history', 'classics', 'settings', 'device', 'spotify'],
+    a: ['player', 'queue', 'guests'],
+    b: ['party', 'history', 'classics', 'settings', 'device', 'spotify'],
+  },
+  // Spotify listo y sin fiesta: lo primero es empezarla
+  ready: {
+    order: ['party', 'player', 'queue', 'guests', 'history', 'classics', 'settings', 'device', 'spotify'],
+    a: ['party', 'player', 'queue', 'guests'],
+    b: ['history', 'classics', 'settings', 'device', 'spotify'],
+  },
+  // puesta en marcha: conectar Spotify, elegir dispositivo, empezar
+  setup: {
+    order: ['spotify', 'device', 'party', 'player', 'queue', 'guests', 'settings', 'history', 'classics'],
+    a: ['spotify', 'device', 'party'],
+    b: ['player', 'queue', 'guests', 'settings', 'history', 'classics'],
+  },
+};
 const cardsHost = $('cards');
+const colA = el('div', { class: 'col col-a' });
+const colB = el('div', { class: 'col col-b' });
+const wideMq = matchMedia('(min-width: 980px)');
 let layoutKey = '';
 function layout(s) {
   const sp = s.admin.spotify;
   const ready = sp.configured && sp.connected;
-  const key = ready ? 'ready' : 'setup';
+  const name = !ready ? 'setup' : s.party.active ? 'fiesta' : 'ready';
+  const wide = wideMq.matches;
+  const key = `${name}:${wide ? 'cols' : 'one'}`;
   if (key === layoutKey) return;
   layoutKey = key;
-  const order = ready
-    ? ['party', 'player', 'queue', 'guests', 'history', 'classics', 'settings', 'device', 'spotify']
-    : ['spotify', 'device', 'party', 'player', 'queue', 'guests', 'settings', 'history', 'classics'];
-  for (const k of order) cardsHost.append(cards[k].root);
+  const L = LAYOUTS[name];
+  // mover nodos quita el foco: se devuelve a donde estaba
+  const focused = cardsHost.contains(document.activeElement) ? document.activeElement : null;
+  if (wide) {
+    // dos columnas: el DOM (y el foco) baja por la primera y luego por la segunda, como se ve
+    cardsHost.append(colA, colB);
+    for (const k of L.a) colA.append(cards[k].root);
+    for (const k of L.b) colB.append(cards[k].root);
+  } else {
+    // una columna: las tarjetas van directas, en el orden de lectura, para que foco y vista coincidan
+    for (const k of L.order) cardsHost.append(cards[k].root);
+    colA.remove(); colB.remove();
+  }
+  if (focused && focused !== document.activeElement && focused.isConnected) focused.focus({ preventScroll: true });
 }
+wideMq.addEventListener('change', () => { if (st?.admin && !dragging) layout(st); });
 
 // ---------- alertas y cabecera ----------
 function renderTop(s) {
   const chips = $('topChips'); chips.replaceChildren();
   const sp = s.admin.spotify;
+  const on = s.party.active;
   chips.append(chip(sp.connected ? 'Spotify conectado' : sp.configured ? 'Spotify sin conectar' : 'Spotify sin configurar', sp.connected ? 'ok' : 'warn'));
-  chips.append(chip(s.party.active ? `Fiesta en marcha · ${s.activeGuests} activos` : 'Sin fiesta', s.party.active ? 'accent' : ''));
+  if (sp.connected) {
+    const dev = s.player.status !== 'no_device' && s.player.deviceName;
+    const c = chip(dev || 'Sin dispositivo', dev ? '' : 'warn');
+    if (dev) c.title = `Suena en: ${dev}`;
+    chips.append(c);
+  }
+  if (on) {
+    chips.append(chip(`Fiesta en marcha · ${s.activeGuests} ${s.activeGuests === 1 ? 'activo' : 'activos'}`, 'accent'));
+    chips.append(chip(`${s.queue.length} en cola`));
+  } else chips.append(chip('Sin fiesta'));
+  const pj = $('pinJump');
+  const showPin = !!(on && s.admin.pin);
+  pj.hidden = !showPin;
+  if (showPin) {
+    setText($('pinJumpText'), `PIN ${s.admin.pin}`);
+    pj.setAttribute('aria-label', `PIN ${s.admin.pin}. Ver PIN y QR de la fiesta`);
+  }
   const al = $('alerts'); al.replaceChildren();
   const items = [...s.admin.alerts];
   const ps = s.player.status;
