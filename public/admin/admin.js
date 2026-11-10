@@ -640,8 +640,8 @@ cards.history = (() => {
     if (!sm || !sm.songs) { sumBox.append(el('p', { class: 'hint', text: 'El resumen aparecerá cuando suenen canciones.' })); return; }
     const stat = (n, t) => el('div', { class: 'st' }, el('b', { text: String(n) }), el('span', { text: t }));
     sumBox.append(el('div', { class: 'sum-stats' },
-      stat(sm.songs, sm.songs === 1 ? 'canción' : 'canciones'), stat(sm.likes, sm.likes === 1 ? 'like o voto' : 'likes y votos'), stat(sm.joined || 0, (sm.joined || 0) === 1 ? 'invitado' : 'invitados')));
-    sumBox.append(el('p', { class: 'hint', text: `Likes: ${sm.playLikes} · votos: ${sm.queueLikes} · pedidas por invitados: ${sm.requested}` }));
+      stat(sm.songs, sm.songs === 1 ? 'canción' : 'canciones'), stat(sm.playLikes, sm.playLikes === 1 ? 'like' : 'likes'), stat(sm.queueLikes, sm.queueLikes === 1 ? 'voto' : 'votos'), stat(sm.joined || 0, (sm.joined || 0) === 1 ? 'invitado' : 'invitados')));
+    sumBox.append(el('p', { class: 'hint', text: `Pedidas por invitados: ${sm.requested}` }));
     const row = (k, v, m) => el('div', { class: 'sum-row' }, el('span', { class: 'k', text: k }), el('span', { class: 'v ellipsis', text: v }), m ? el('span', { class: 'm', text: m }) : null);
     const s1 = sm.songOfNight;
     sumBox.append(
