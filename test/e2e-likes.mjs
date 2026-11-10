@@ -153,11 +153,62 @@ async function main() {
   await step('like a la que suena: Laura no puede (es suya), Marc y Pau sí', async () => {
     await waitFor(async () => !(await g[1].isHidden('#btnLike')));
     expect(await g[0].locator('#btnLike').isDisabled(), 'like propio desactivado');
+    // momento propio: solo para quien pidió la canción
+    await waitFor(async () => (await g[0].locator('.np.mine').count()) === 1, { msg: 'Laura ve .np.mine' });
+    expect((await g[0].textContent('#npKicker')).trim() === '¡Suena tu canción!', 'kicker de Laura');
+    expect((await g[0].textContent('#npBy')).trim() === 'La has pedido tú', 'chip de Laura');
+    expect((await g[0].getAttribute('.np', 'aria-label')) === 'Ahora suena', 'aria-label de la sección intacto');
+    for (const i of [1, 2]) {
+      expect((await g[i].locator('.np.mine').count()) === 0, `g${i} sin .mine`);
+      expect((await g[i].textContent('#npKicker')).trim() === 'Ahora suena', `kicker de g${i}`);
+      expect(await g[i].locator('#btnLike').isEnabled(), `like de g${i} activo`);
+      expect(!(await g[i].locator('#btnLike').evaluate((e) => e.classList.contains('own'))), `g${i} sin .own`);
+    }
+    expect((await g[0].locator('#btnLike').getAttribute('aria-label')) === 'Likes a tu canción: 0', 'aria 0 likes');
     expect(await g[1].locator('#btnLike svg path[d^="M19 14c1.49"]').count() === 1 && await g[1].locator('#btnLike svg path[d="M12 19V5"]').count() === 0, 'el me gusta de lo que suena sigue siendo el corazon');
     await g[1].click('#btnLike');
     await waitFor(async () => (await g[1].getAttribute('#btnLike', 'aria-pressed')) === 'true', { msg: 'like de Marc' });
+    await waitFor(async () => (await g[0].textContent('#btnLike')).trim() === '1' && (await g[0].getAttribute('#btnLike', 'aria-label')) === 'Likes a tu canción: 1', { msg: 'Laura ve 1 like' });
+    expect((await g[0].getAttribute('#btnLike', 'title')) === 'Los likes que recibe tu canción', 'title del contador');
     await g[2].click('#btnLike');
-    await waitFor(async () => (await g[0].textContent('#btnLike')).trim() === '2', { msg: 'Laura ve 2 likes' });
+    await waitFor(async () => (await g[0].textContent('#btnLike')).trim() === '2' && (await g[0].getAttribute('#btnLike', 'aria-label')) === 'Likes a tu canción: 2', { msg: 'Laura ve 2 likes' });
+    expect(await g[0].locator('#btnLike').isDisabled(), 'sigue desactivado');
+    // movimiento reducido: sin pulso del halo ni rebote del corazón
+    await g[0].emulateMedia({ reducedMotion: 'reduce' });
+    const probe = () => g[0].evaluate(() => {
+      const glow = getComputedStyle(document.querySelector('.np.mine .cover-halo'), '::before');
+      const wrap = getComputedStyle(document.querySelector('.np.mine .cover-wrap'));
+      return { halo: glow.animationName, state: glow.animationPlayState, glowShadow: glow.boxShadow, glowOpacity: glow.opacity, wrapAnim: wrap.animationName, ring: wrap.boxShadow, heart: getComputedStyle(document.querySelector('#btnLike .ico')).animationName };
+    });
+    const isAccent = (v) => /255, 77, 133/.test(v) || v.includes('#ff4d85') || v.includes('oklab') || v.includes('color(');
+    const anim = await probe();
+    expect(anim.halo === 'none' && anim.heart === 'none', 'sin animación con movimiento reducido: ' + JSON.stringify(anim));
+    expect(isAccent(anim.ring) && / 2px/.test(anim.ring), 'el anillo estático sigue visible: ' + anim.ring);
+    expect(isAccent(anim.glowShadow) && Number(anim.glowOpacity) > 0, 'el resplandor sigue visible sin animar: ' + JSON.stringify(anim));
+    await g[0].emulateMedia({ reducedMotion: 'no-preference' });
+    const norm = await probe();
+    expect(norm.halo === 'halo', 'halo animado con movimiento normal: ' + JSON.stringify(norm));
+    expect(norm.wrapAnim === 'none', 'la caratula en sí no se anima (sin box-shadow por fotograma)');
+    expect(norm.state === 'running', 'pulso en marcha mientras suena: ' + norm.state);
+    const kfProps = await g[0].evaluate(() => {
+      const props = new Set();
+      for (const sheet of document.styleSheets) for (const r of sheet.cssRules) if (r.type === CSSRule.KEYFRAMES_RULE && r.name === 'halo') for (const k of r.cssRules) for (const p of k.style) props.add(p);
+      return [...props];
+    });
+    expect(kfProps.length === 1 && kfProps[0] === 'opacity', 'los keyframes del halo solo tocan opacity: ' + kfProps.join(','));
+    await g[0].evaluate(() => window.scrollTo(0, 0));
+    await sleep(300);
+    await shot(g[0], 'L0-guest-tu-cancion', { fullPage: false });
+    // en pausa el pulso se detiene; al reanudar vuelve
+    try {
+      expect((await api(adminCtx, 'POST', 'admin/control/pause')).status === 200, 'el anfitrión pausa');
+      await waitFor(async () => (await g[0].evaluate(() => !document.querySelector('#pausedBadge').hidden)), { msg: 'Laura ve En pausa' });
+      await waitFor(async () => (await probe()).state === 'paused', { msg: 'el pulso se detiene en pausa' });
+    } finally {
+      await api(adminCtx, 'POST', 'admin/control/resume');
+    }
+    await waitFor(async () => (await g[0].evaluate(() => document.querySelector('#pausedBadge').hidden)), { msg: 'Laura ve que sigue' });
+    await waitFor(async () => (await probe()).state === 'running', { msg: 'el pulso vuelve al reanudar' });
     const own = await api(gctx[0], 'POST', 'nowplaying/like');
     expect(own.status === 403, 'API rechaza like propio');
     // quitar y volver a poner
@@ -172,6 +223,9 @@ async function main() {
     await mockCmd('speed', 40);
     await waitFor(async () => (await g[0].textContent('#npTitle')).includes(B.name), { timeout: 12000, msg: 'B no suena' });
     await mockCmd('speed', 1);
+    await waitFor(async () => (await g[0].locator('.np.mine').count()) === 0 && (await g[1].locator('.np.mine').count()) === 1, { msg: 'el estado propio pasa de Laura a Marc' });
+    expect((await g[0].textContent('#npKicker')).trim() === 'Ahora suena' && (await g[1].textContent('#npKicker')).trim() === '¡Suena tu canción!', 'kickers tras cambiar');
+    expect((await g[0].textContent('#npBy')).includes('Pedida por Marc'), 'Laura ve «Pedida por Marc»');
     await waitFor(async () => (await g[1].textContent('#btnLike')).trim() === '0', { msg: 'B arranca sin likes: el voto de cola no cuenta en el corazón' });
     await g[0].click('#btnLike');
     await waitFor(async () => (await g[1].textContent('#btnLike')).trim() === '1', { msg: 'B ve 1 like sonando' });

@@ -218,7 +218,7 @@ async function main() {
   await step('invitado 1 busca y añade X: empieza a sonar (arranque en frio)', async () => {
     await guestAdd(g[0], X);
     await waitFor(async () => (await g[0].textContent('#npTitle')).includes(X.name), { timeout: 6000, msg: 'X no suena' });
-    expect((await g[0].textContent('#npBy')).includes('Laura'), 'pedida por Laura');
+    expect((await g[0].textContent('#npBy')).includes('La has pedido tú'), 'su propia canción: «La has pedido tú»');
     expect((await mockState()).mock.current === X.name, 'mock reproduce X');
   });
   await step('invitados añaden A, B, C y los demas lo ven en menos de 1 s', async () => {

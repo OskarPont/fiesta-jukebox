@@ -162,12 +162,16 @@ function render(st) {
 function renderNow(st) {
   const np = st.nowPlaying;
   const cover = $('cover');
+  const own = !!(np && np.fromQueue && np.fromQueue.addedBy.id === st.me.id);
+  document.querySelector('.np').classList.toggle('mine', own);
+  setText($('npKicker'), own ? '¡Suena tu canción!' : 'Ahora suena');
   if (np) {
     setText($('npTitle'), np.name); setText($('npArtist'), artistsText(np.artists));
     if (np.image) { setSrc(cover, np.image); cover.hidden = false; } else cover.hidden = true;
     setBg(np.image || null);
     const by = $('npBy'); by.hidden = false;
-    if (np.fromQueue) { by.className = 'chip accent'; setText(by, `Pedida por ${np.fromQueue.addedBy.name}`); }
+    if (own) { by.className = 'chip accent'; setText(by, 'La has pedido tú'); }
+    else if (np.fromQueue) { by.className = 'chip accent'; setText(by, `Pedida por ${np.fromQueue.addedBy.name}`); }
     else if (np.filler === 'classic') { by.className = 'chip'; setText(by, 'Clásico de otras fiestas'); }
     else { by.className = 'chip'; setText(by, 'Relleno: playlist del anfitrión'); }
     setText($('tTotal'), fmtTime(np.durationMs));
@@ -181,6 +185,7 @@ function renderNow(st) {
 }
 
 let busy = false;
+let prevLike = { id: null, n: 0 }; let popTimer = 0;
 function renderControls() {
   if (!state?.me) return;
   const st = state; const np = st.nowPlaying; const s = st.settings;
@@ -194,6 +199,12 @@ function renderControls() {
   const liked = !!(np && np.liked);
   bl.hidden = !np;
   if (np) {
+    const likes = np.likes || 0;
+    if (own && prevLike.id === np.trackId && likes > prevLike.n) {
+      bl.classList.add('pop'); clearTimeout(popTimer); popTimer = setTimeout(() => bl.classList.remove('pop'), 500);
+    }
+    prevLike = { id: np.trackId, n: likes };
+    bl.classList.toggle('own', own);
     const key = `${np.likes}|${liked}|${own}`;
     if (bl.dataset.k !== key) {
       bl.dataset.k = key;
@@ -202,8 +213,8 @@ function renderControls() {
     bl.classList.toggle('on', liked);
     bl.setAttribute('aria-pressed', String(liked));
     bl.disabled = own;
-    bl.title = own ? 'Es tu canción' : liked ? 'Quitar me gusta' : 'Me gusta esta canción';
-    bl.setAttribute('aria-label', `${bl.title} (${np.likes || 0})`);
+    bl.title = own ? 'Los likes que recibe tu canción' : liked ? 'Quitar me gusta' : 'Me gusta esta canción';
+    bl.setAttribute('aria-label', own ? `Likes a tu canción: ${likes}` : `${bl.title} (${likes})`);
   }
   bp.hidden = !!st.player.isIphone;
   bp.replaceChildren(icon(s.pauseMode === 'admin' ? 'lock' : playing ? 'pause' : 'play'), el('span', { class: 'lbl', text: playing ? 'Pausa' : 'Seguir' }));
