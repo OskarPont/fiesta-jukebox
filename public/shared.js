@@ -109,7 +109,9 @@ export function liveProgress(np, scale = 1) {
 }
 
 // ---------- toasts ----------
-/** `action` opcional: { label, onclick(toastEl) }. El toast con accion recibe clics y el boton es alcanzable con teclado. */
+/** `action` opcional: { label, onclick(toastEl) }. El toast con accion recibe clics y el boton es alcanzable con teclado.
+ *  Devuelve el elemento, con `update(text, ms?)`: cambia el texto (se anuncia una vez) y reinicia la cuenta atras.
+ *  Si hay mas de 3, se retira el mas antiguo que no sea error ni lleve accion; solo si todos lo son, el mas antiguo. */
 export function toast(text, kind = 'info', ms = 3600, action = null) {
   let host = document.getElementById('toasts');
   if (!host) { host = el('div', { id: 'toasts', 'aria-live': 'polite' }); document.body.append(host); }
@@ -121,8 +123,14 @@ export function toast(text, kind = 'info', ms = 3600, action = null) {
     t.append(b);
   }
   host.append(t);
-  while (host.children.length > 3) host.firstChild.remove();
-  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 260); }, ms);
+  while (host.children.length > 3) {
+    const kids = [...host.children];
+    (kids.find((c) => !c.classList.contains('error') && !c.classList.contains('has-action')) || kids[0]).remove();
+  }
+  let timer;
+  const arm = (d) => { clearTimeout(timer); timer = setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 260); }, d); };
+  t.update = (next, d = ms) => { t.firstChild.textContent = next; arm(d); };
+  arm(ms);
   return t;
 }
 

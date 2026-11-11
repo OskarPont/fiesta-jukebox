@@ -191,3 +191,14 @@ details.fold[open] > summary::after, .builder[open] > summary::after { transform
 .pv { font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
 .pv-list { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13px; }
 .pv-list li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* avisos abajo (arriba tapaban la cabecera fija); en escritorio, a la derecha */
+body.admin #toasts { top: auto; bottom: max(16px, env(safe-area-inset-bottom)); }
+body.admin .toast { animation-name: toast-up; }
+body.admin .toast.out { animation-name: toast-down; }
+@keyframes toast-up { from { opacity: 0; transform: translateY(14px) scale(0.97); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes toast-down { to { opacity: 0; transform: translateY(10px) scale(0.98); } }
+@media (min-width: 980px) {
+  body.admin #toasts { align-items: flex-end; padding: 0 20px; }
+  body.admin .toast { max-width: 380px; }
+}
