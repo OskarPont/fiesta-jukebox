@@ -1017,6 +1017,21 @@ function onState(s) {
   applyState(s);
 }
 
+// varias canciones añadidas seguidas: un solo aviso que se actualiza, no una torre
+let addGroup = null;
+function onServerToast(t) {
+  if (t.kind === 'join') return;
+  if (t.kind !== 'add') { toast(t.text, 'info', 2800); return; }
+  const who = (/^(.+?) añadió /.exec(t.text) || [])[1] || '';
+  if (addGroup && addGroup.el.isConnected && !addGroup.el.classList.contains('out')) {
+    addGroup.names.add(who); addGroup.n++;
+    const [first, ...rest] = [...addGroup.names];
+    addGroup.el.update(rest.length ? `${first} y ${rest.length} más añadieron canciones` : `${first} añadió ${addGroup.n} canciones`, 2800);
+  } else {
+    addGroup = { el: toast(t.text, 'info', 2800), names: new Set([who]), n: 1 };
+  }
+}
+
 async function start() {
   try { await api('admin/status'); } catch (e) {
     if (e instanceof ApiError && e.status === 401) { showLogin(); return; }
@@ -1026,7 +1041,7 @@ async function start() {
   events?.close();
   events = connectEvents({
     onState,
-    onToast: (t) => { if (t.kind !== 'join') toast(t.text, 'info', 2800); },
+    onToast: onServerToast,
     onStatus: () => {},
     onUnauthorized: () => showLogin('La sesión ha caducado.'),
     probe: () => api('admin/status'),

@@ -116,9 +116,10 @@ input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
 .aq-item.dragging { z-index: 10; box-shadow: 0 24px 50px -10px rgba(0, 0, 0, 0.8); border-color: var(--line-strong); background: var(--surface-3); transition: none !important; }
 .aq-item.shift { transition: transform 0.2s var(--ease-out); }
 .aq-item img, .ah img { width: 44px; height: 44px; border-radius: 5px; object-fit: cover; background: var(--surface-3); flex: none; }
-.grip { width: 34px; height: 44px; display: grid; place-items: center; color: var(--faint); cursor: grab; touch-action: none; flex: none; border-radius: 8px; }
+.grip { appearance: none; background: transparent; border: 0; padding: 0; font: inherit; width: 34px; height: 44px; display: grid; place-items: center; color: var(--faint); cursor: grab; touch-action: none; flex: none; border-radius: 8px; }
 .grip:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
 .dragging .grip { cursor: grabbing; }
+.grip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .aq-main { flex: 1; min-width: 0; }
 .aq-main .t { font-weight: 600; font-size: 15px; }
 .aq-main .s { color: var(--muted); font-size: 13px; }
@@ -191,3 +192,14 @@ details.fold[open] > summary::after, .builder[open] > summary::after { transform
 .pv { font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
 .pv-list { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13px; }
 .pv-list li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* avisos abajo (arriba tapaban la cabecera fija); en escritorio, a la derecha */
+body.admin #toasts { top: auto; bottom: max(16px, env(safe-area-inset-bottom)); }
+body.admin .toast { animation-name: toast-up; }
+body.admin .toast.out { animation-name: toast-down; }
+@keyframes toast-up { from { opacity: 0; transform: translateY(14px) scale(0.97); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes toast-down { to { opacity: 0; transform: translateY(10px) scale(0.98); } }
+@media (min-width: 980px) {
+  body.admin #toasts { align-items: flex-end; padding: 0 20px; }
+  body.admin .toast { max-width: 380px; }
+}

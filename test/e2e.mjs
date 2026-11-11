@@ -100,7 +100,7 @@ const mockCmd = async (action, value) => fetch(`${BASE}/api/_mock/${action}`, { 
 const watchToasts = (page) => page.evaluate(() => {
   window.__toasts = [];
   if (window.__toastObs) return;
-  window.__toastObs = new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.classList?.contains('toast')) window.__toasts.push(n.textContent); });
+  window.__toastObs = new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) { if (n.classList?.contains('toast')) window.__toasts.push(n.textContent); else if (n.nodeType === 3) { const t = m.target.closest?.('.toast'); if (t) window.__toasts.push(t.textContent); } } });
   window.__toastObs.observe(document.body, { childList: true, subtree: true });
 });
 const seenToasts = (page) => page.evaluate(() => window.__toasts || []);
@@ -334,7 +334,8 @@ async function main() {
         expect(!seen.some((t) => t.includes('añadió')), `${n} no ve «X añadió …» (#5): ` + seen.join(' | '));
       }
       expect(!(await seenToasts(g[1])).some((t) => t.includes(D.name) || t.startsWith('Añadida')), 'otro invitado no ve el aviso de una canción ajena');
-      expect((await seenToasts(admin)).some((t) => t.includes(D.name)), 'el panel sigue viendo los avisos de canciones añadidas');
+      // el panel agrupa avisos seguidos («X y N más añadieron canciones»): ve el nombre o el aviso agrupado
+      expect((await seenToasts(admin)).some((t) => t.includes(D.name) || /añadi(ó|eron)/.test(t)), 'el panel sigue viendo los avisos de canciones añadidas');
       // abajo y sin tapar el buscador
       const pos = await g[0].evaluate(() => { const h = document.getElementById('toasts').getBoundingClientRect(); return { bottom: h.bottom, vh: innerHeight }; });
       expect(pos.bottom > pos.vh * 0.85, 'avisos abajo: ' + JSON.stringify(pos));
@@ -936,6 +937,73 @@ async function main() {
       await admin.evaluate(() => scrollTo(0, 0));
     }
     await waitFor(async () => (await admin.locator('#card-queue .aq-item').count()) === 3, { msg: 'la cola vuelve a sus 3 canciones' });
+  });
+  await step('panel: avisos abajo, agrupados, sin tapar la cabecera y sin perder errores (#29)', async () => {
+    const prev = (await api(adminCtx, 'GET', 'admin/status')).body.settings;
+    const vp = admin.viewportSize();
+    const extra = [];
+    const boxes = () => admin.evaluate(() => {
+      const r = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
+      const top = r(document.querySelector('.a-top'));
+      const ts = [...document.querySelectorAll('#toasts .toast')].map((e) => ({ ...r(e), text: e.textContent }));
+      return { top, ts, vw: innerWidth, vh: innerHeight };
+    });
+    const overlaps = (s) => s.ts.filter((t) => t.l < s.top.r && t.r > s.top.l && t.t < s.top.b && t.b > s.top.t);
+    const cleared = () => waitFor(async () => (await admin.locator('#toasts .toast').count()) === 0, { timeout: 8000, msg: 'los avisos no se van' });
+    const addSix = async () => {
+      const songs = [37, 38, 39, 36, 34, 35].map(T);
+      for (const [i, t] of songs.entries()) {
+        const gi = i % 3;
+        await api(gctx[gi], 'GET', `search?q=${encodeURIComponent(t.name.toLowerCase())}`);
+        const r = await api(gctx[gi], 'POST', 'queue', { uri: t.uri });
+        expect(r.status === 200, 'añadir a la cola: ' + JSON.stringify(r));
+        extra.push(r.body.item.qid);
+      }
+      await sleep(500);
+    };
+    const quitar = async () => { for (const q of extra.splice(0)) await api(adminCtx, 'DELETE', `admin/queue/${q}`); };
+    try {
+      await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: 10, addCooldownSec: 0, noRepeatMin: 0 });
+      await admin.evaluate(() => scrollTo(0, 0));
+      await cleared();
+      // ---- móvil ----
+      await admin.setViewportSize({ width: 390, height: 844 }); await sleep(400);
+      await addSix();
+      const m = await boxes();
+      expect(m.ts.length >= 1 && m.ts.length <= 3, 'móvil: entre 1 y 3 avisos: ' + JSON.stringify(m.ts));
+      expect(overlaps(m).length === 0, 'móvil: los avisos tapan la cabecera: ' + JSON.stringify(m));
+      expect(m.ts.every((t) => t.b > m.vh - 200 && t.l >= 0 && t.r <= m.vw), 'móvil: avisos abajo y dentro: ' + JSON.stringify(m));
+      await shot(admin, '65-admin-avisos-movil', { fullPage: false });
+      await quitar(); await cleared();
+      // ---- escritorio ----
+      await admin.setViewportSize({ width: 1440, height: 900 }); await sleep(400);
+      await addSix();
+      const d = await boxes();
+      expect(overlaps(d).length === 0, 'escritorio: los avisos tapan la cabecera: ' + JSON.stringify(d));
+      expect(d.ts.length >= 1 && d.ts.every((t) => t.r > d.vw - 100 && t.b > d.vh - 200), 'escritorio: abajo a la derecha: ' + JSON.stringify(d));
+      const adds = d.ts.filter((t) => /añadi(ó|eron)/.test(t.text));
+      expect(adds.length === 1, 'un solo aviso de canciones añadidas: ' + JSON.stringify(d.ts.map((t) => t.text)));
+      expect(/^\S.* y \d+ más añadieron canciones$/.test(adds[0].text), 'texto agrupado: ' + adds[0].text);
+      expect(d.ts.length <= 3, 'como mucho 3 avisos: ' + d.ts.length);
+      await shot(admin, '64-admin-avisos-escritorio', { fullPage: false });
+      await quitar(); await cleared();
+      // ---- los errores no los desaloja el ruido ----
+      await admin.evaluate(async () => {
+        const { toast } = await import(new URL('../shared.js', document.querySelector('script[src*="admin.js"]').src));
+        toast('Fallo de prueba', 'error', 6000);
+        for (let i = 1; i <= 4; i++) toast(`Info ${i}`, 'info', 4000);
+      });
+      const e = await boxes();
+      expect(e.ts.some((t) => t.text === 'Fallo de prueba'), 'el error sigue visible: ' + JSON.stringify(e.ts.map((t) => t.text)));
+      expect(e.ts.length <= 3, 'tope de 3 con error: ' + e.ts.length);
+      expect(e.ts.some((t) => t.text === 'Info 4'), 'el último aviso entra: ' + JSON.stringify(e.ts.map((t) => t.text)));
+    } finally {
+      await quitar();
+      await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: prev.maxQueuedPerGuest, addCooldownSec: prev.addCooldownSec, noRepeatMin: prev.noRepeatMin });
+      await admin.setViewportSize(vp);
+    }
+    await waitFor(async () => (await admin.locator('#card-queue .aq-item').count()) === 3, { msg: 'la cola vuelve a sus 3 canciones' });
+    await cleared();
   });
   await step('invitado: sin scroll horizontal a 360 px', async () => {
     const c = await newCtx(browser, 'mobile'); const p = await c.newPage(); watch(p, 'g-360');
