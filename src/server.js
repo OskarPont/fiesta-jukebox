@@ -316,7 +316,10 @@ export async function createApp(cfg = config, { logger = false } = {}) {
     await api.register(async (adm) => {
       adm.addHook('preHandler', async (req) => needAdmin(req));
 
-      adm.get('/status', async () => ({ ok: true, ...buildCommon(ctx).admin, party: s.party, player: s.player, settings: s.settings }));
+      adm.get('/status', async () => {
+        const common = buildCommon(ctx);
+        return { ok: true, ...common.admin, activeGuests: common.activeGuests, skipNeeded: common.skipNeeded, party: s.party, player: s.player, settings: s.settings };
+      });
 
       adm.post('/spotify/credentials', async (req) => {
         const { clientId, clientSecret } = req.body || {};

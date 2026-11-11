@@ -55,6 +55,7 @@ export function buildCommon(ctx) {
     publicUrl: config.PUBLIC_URL,
     publicHost: config.PUBLIC_URL.replace(/^https?:\/\//, ''),
     activeGuests: present.filter((g) => party.isGuestActive(g)).length,
+    skipNeeded: needed,
     lastGlobalControlAt: s.lastGlobalControlAt,
     admin: {
       pin: s.party?.active ? s.party.pin : null,
@@ -159,6 +160,7 @@ export function forViewer(common, viewer, ctx) {
     publicUrl: common.publicUrl,
     publicHost: common.publicHost,
     activeGuests: common.activeGuests,
+    skipNeeded: common.skipNeeded,
     me,
     isAdmin: !!viewer.isAdmin,
   };

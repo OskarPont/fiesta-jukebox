@@ -4,8 +4,9 @@ import path from 'node:path';
 export const DEFAULT_SETTINGS = Object.freeze({
   pauseMode: 'direct',
   skipMode: 'vote',
-  skipVotePct: 40,
-  skipVoteMin: 2,
+  skipVoteMode: 'pct',
+  skipVotePct: 50,
+  skipVoteFixed: 3,
   maxQueuedPerGuest: 3,
   addCooldownSec: 15,
   controlCooldownSec: 20,
@@ -19,6 +20,27 @@ export const DEFAULT_SETTINGS = Object.freeze({
   classicsMinScore: 2,
   classicsAutoUpdate: true,
 });
+
+/**
+ * Migracion de ajustes antiguos (skipVotePct + skipVoteMin) al modelo nuevo
+ * (skipVoteMode + skipVotePct | skipVoteFixed). Se aplica una sola vez, al cargar
+ * state.json, antes de que nadie lea los ajustes. Devuelve true si cambio algo.
+ */
+export function migrateSettings(st) {
+  if (!st || st.skipVoteMin === undefined) return false;
+  if (st.skipVoteMode === undefined) {
+    const min = Number(st.skipVoteMin);
+    if (min <= 2) {
+      st.skipVoteMode = 'pct';
+      st.skipVotePct = Math.max(10, Number(st.skipVotePct) || DEFAULT_SETTINGS.skipVotePct);
+    } else {
+      st.skipVoteMode = 'fixed';
+      st.skipVoteFixed = Math.min(20, min);
+    }
+  }
+  delete st.skipVoteMin;
+  return true;
+}
 
 export function defaultState() {
   return {
@@ -71,9 +93,12 @@ export class Store {
   load() {
     const d = readJsonSafe(this.file, this.now);
     const base = defaultState();
+    let migrated = false;
     if (d) {
       for (const k of Object.keys(base)) if (d[k] !== undefined) base[k] = d[k];
-      base.settings = { ...DEFAULT_SETTINGS, ...(d.settings || {}) };
+      const saved = { ...(d.settings || {}) };
+      migrated = migrateSettings(saved);
+      base.settings = { ...DEFAULT_SETTINGS, ...saved };
       if (!base.guests || typeof base.guests !== 'object' || Array.isArray(base.guests)) base.guests = {};
       if (!Array.isArray(base.queue)) base.queue = [];
       if (!Array.isArray(base.history)) base.history = [];
@@ -81,6 +106,7 @@ export class Store {
       base.flags = {};
     }
     Object.assign(this.state, base);
+    if (migrated) this.save();   // persistir los ajustes ya migrados
     this.tokens = readJsonSafe(path.join(this.dir, 'spotify.json'), this.now);
     this.creds = readJsonSafe(path.join(this.dir, 'config.json'), this.now);
     return this;

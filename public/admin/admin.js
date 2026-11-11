@@ -355,9 +355,9 @@ cards.settings = (() => {
     const out = el('output', { for: id, text: '' });
     const r = el('input', { type: 'range', id, min: String(min), max: String(max), step: String(step), 'aria-label': label, 'aria-describedby': desc ? `${id}-desc` : null });
     const show = (v) => { const t = fmt(v); out.textContent = t; r.setAttribute('aria-valuetext', t); };
-    r.addEventListener('input', () => show(Number(r.value)));
+    r.addEventListener('input', () => { show(Number(r.value)); vals[key] = Number(r.value); refreshVisibility(); });
     r.addEventListener('change', () => queueSave(key, Number(r.value)));
-    ctrls[key] = { set: (v) => { if (document.activeElement !== r && !(key in pending)) { r.value = String(v); show(v); } } };
+    ctrls[key] = { set: (v) => { if (document.activeElement !== r && !(key in pending)) { r.value = String(v); show(v); vals[key] = v; } } };
     return setRow(key, label, desc, r, out);
   }
   function switchSetting(key, label, desc) {
@@ -367,11 +367,28 @@ cards.settings = (() => {
     const row = el('div', { class: 'set inline' }, el('div', {}, el('div', { class: 'lab', text: label }), desc ? el('div', { class: 'desc', text: desc }) : null), el('label', { class: 'switch' }, i, el('i')));
     rows[key] = row; return row;
   }
+  // «Ahora: N votos de M invitados activos». Con lo que dice el servidor; si acabas de
+  // tocar algo y aún no ha contestado, una vista previa con la misma fórmula.
+  const skipLive = el('p', { class: 'hint', id: 'skipLive', 'aria-live': 'polite' });
+  let srv = null; // { needed, active } del último estado
+  function renderSkipLive() {
+    skipLive.hidden = vals.skipMode !== 'vote';
+    if (!srv || skipLive.hidden) return;
+    const active = srv.active;
+    let needed = srv.needed;
+    if (Object.keys(pending).some((k) => k.startsWith('skipVote')) || vals.skipVoteMode !== srv.mode || vals.skipVotePct !== srv.pct || vals.skipVoteFixed !== srv.fixed) {
+      needed = vals.skipVoteMode === 'fixed' ? Math.max(1, Math.min(vals.skipVoteFixed, active)) : Math.max(1, Math.ceil((active * vals.skipVotePct) / 100));
+    }
+    skipLive.textContent = `Ahora: ${needed} ${needed === 1 ? 'voto' : 'votos'} de ${active} ${active === 1 ? 'invitado activo' : 'invitados activos'}`;
+  }
   // Solo se ven los ajustes que aplican con lo elegido arriba.
   function refreshVisibility() {
     const vote = vals.skipMode === 'vote';
     const direct = vals.pauseMode === 'direct' || vals.skipMode === 'direct';
-    for (const k of ['skipVotePct', 'skipVoteMin']) if (rows[k]) rows[k].hidden = !vote;
+    if (rows.skipVoteMode) rows.skipVoteMode.hidden = !vote;
+    if (rows.skipVotePct) rows.skipVotePct.hidden = !vote || vals.skipVoteMode !== 'pct';
+    if (rows.skipVoteFixed) rows.skipVoteFixed.hidden = !vote || vals.skipVoteMode !== 'fixed';
+    renderSkipLive();
     for (const k of ['controlCooldownSec', 'globalControlCooldownSec']) if (rows[k]) rows[k].hidden = !direct;
     if (rows.classicsMinScore) rows.classicsMinScore.hidden = vals.fillerMode !== 'classics';
   }
@@ -398,8 +415,10 @@ cards.settings = (() => {
       pauseRow = segSetting('pauseMode', 'Pausar y reanudar', 'Quién puede pausar la música.', [['direct', 'Cualquiera'], ['admin', 'Solo yo']]),
       pauseIosNote,
       segSetting('skipMode', 'Saltar canción', 'Cómo se salta la canción que suena.', [['direct', 'Directo'], ['vote', 'Por votos'], ['admin', 'Solo yo']]),
-      rangeSetting('skipVotePct', 'Votos para saltar', 'Porcentaje de invitados activos que hace falta.', 1, 100, 1, (v) => `${v}%`),
-      rangeSetting('skipVoteMin', 'Mínimo de votos para saltar', null, 1, 20, 1, (v) => `${v}`),
+      segSetting('skipVoteMode', '¿Cuántos votos hacen falta?', 'Invitados activos: quienes tienen la app abierta o la han usado en los últimos 10 min.', [['pct', 'Parte de la gente'], ['fixed', 'Número fijo']]),
+      rangeSetting('skipVotePct', 'Parte de la gente que tiene que votar', null, 10, 100, 5, (v) => `${v} %`),
+      rangeSetting('skipVoteFixed', 'Votos que hacen falta', null, 1, 20, 1, (v) => `${v} ${v === 1 ? 'voto' : 'votos'}`),
+      skipLive,
       rangeSetting('controlCooldownSec', 'Espera para pausar o saltar', 'Por invitado, en modo directo.', 0, 600, 5, sec),
       rangeSetting('globalControlCooldownSec', 'Espera global para pausar o saltar', 'Evita guerras de pausa entre invitados.', 0, 300, 1, sec)),
     group('relleno', 'Relleno y clásicos', false,
@@ -410,6 +429,7 @@ cards.settings = (() => {
     root: c.root,
     update(s) {
       for (const [k, ctl] of Object.entries(ctrls)) ctl.set(s.settings[k]);
+      srv = { needed: s.skipNeeded, active: s.activeGuests, mode: s.settings.skipVoteMode, pct: s.settings.skipVotePct, fixed: s.settings.skipVoteFixed };
       refreshVisibility();
       const ios = !!s.player.isIphone;
       pauseIosNote.hidden = !ios;

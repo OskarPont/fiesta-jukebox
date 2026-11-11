@@ -183,13 +183,13 @@ async function main() {
   await step('admin: ajustes agrupados, condicionales y accesibles', async () => {
     const st = async () => (await api(adminCtx, 'GET', 'admin/status')).body.settings;
     const orig = await st();
-    const keys = ['skipMode', 'pauseMode', 'fillerMode', 'maxQueuedPerGuest'];
+    const keys = ['skipMode', 'pauseMode', 'fillerMode', 'maxQueuedPerGuest', 'skipVoteMode', 'skipVotePct', 'skipVoteFixed'];
     try {
       const groups = admin.locator('#card-settings details');
       expect(await groups.count() === 3, 'tres grupos de ajustes');
       const want = [
         ['Cola', ['maxQueuedPerGuest', 'addCooldownSec', 'maxDurationMin', 'noRepeatMin'], ['Cola abierta', 'Orden de la cola', 'Permitir canciones explícitas']],
-        ['Controles de los invitados', ['skipVotePct', 'skipVoteMin', 'controlCooldownSec', 'globalControlCooldownSec'], ['Pausar y reanudar', 'Saltar canción']],
+        ['Controles de los invitados', ['skipVotePct', 'skipVoteFixed', 'controlCooldownSec', 'globalControlCooldownSec'], ['Pausar y reanudar', 'Saltar canción']],
         ['Relleno y clásicos', ['classicsMinScore'], ['Cuando la cola se vacía', 'Actualizar "Clásicos de fiesta"']],
       ];
       for (let i = 0; i < 3; i++) {
@@ -206,9 +206,37 @@ async function main() {
       const seg = (label, btn) => admin.locator('#card-settings .set', { hasText: label }).locator('button', { hasText: btn });
       // votos para saltar solo con «Por votos»
       await seg('Saltar canción', 'Por votos').click();
-      expect(await row('skipVotePct').isVisible() && await row('skipVoteMin').isVisible(), 'por votos: se ven las filas de votos');
+      expect(await admin.locator('#card-settings .set', { hasText: '¿Cuántos votos hacen falta?' }).isVisible(), 'por votos: se ve el selector de modo');
+      expect(await admin.locator('#card-settings .set', { hasText: 'Mínimo de votos' }).count() === 0, 'ya no existe «Mínimo de votos»');
+      await seg('¿Cuántos votos hacen falta?', 'Parte de la gente').click();
+      expect(await row('skipVotePct').isVisible() && !(await row('skipVoteFixed').isVisible()), 'parte de la gente: solo el range de porcentaje');
+      const live = admin.locator('#skipLive');
+      const liveText = async () => ((await live.textContent()) || '').trim();
+      const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+      const expectLive = async (what) => {
+        await waitFor(async () => {
+          const ss = (await api(adminCtx, 'GET', 'admin/status')).body;
+          return (await liveText()) === `Ahora: ${plural(ss.skipNeeded, 'voto', 'votos')} de ${plural(ss.activeGuests, 'invitado activo', 'invitados activos')}`;
+        }, { msg: `#skipLive no coincide con el servidor (${what}): ${await liveText()}` });
+      };
+      await expectLive('porcentaje');
+      expect(/^Ahora: \d+ votos? de \d+ invitados? activos?$/.test(await liveText()), 'formato de #skipLive: ' + await liveText());
+      await admin.locator('#set-skipVotePct').fill('100');
+      await admin.locator('#set-skipVotePct').dispatchEvent('input');
+      await admin.locator('#set-skipVotePct').dispatchEvent('change');
+      await waitFor(async () => (await st()).skipVotePct === 100, { msg: 'porcentaje no guardado' });
+      await expectLive('100 %');
+      await seg('¿Cuántos votos hacen falta?', 'Número fijo').click();
+      expect(await row('skipVoteFixed').isVisible() && !(await row('skipVotePct').isVisible()), 'número fijo: solo el range de votos');
+      await waitFor(async () => (await st()).skipVoteMode === 'fixed', { msg: 'modo no guardado' });
+      await admin.locator('#set-skipVoteFixed').fill('1');
+      await admin.locator('#set-skipVoteFixed').dispatchEvent('input');
+      expect(await liveText() === `Ahora: 1 voto de ${plural((await api(adminCtx, 'GET', 'admin/status')).body.activeGuests, 'invitado activo', 'invitados activos')}`, 'vista previa inmediata: ' + await liveText());
+      await admin.locator('#set-skipVoteFixed').dispatchEvent('change');
+      await waitFor(async () => (await st()).skipVoteFixed === 1, { msg: 'fijo no guardado' });
+      await expectLive('fijo 1');
       await seg('Saltar canción', 'Directo').click();
-      expect(!(await row('skipVotePct').isVisible()) && !(await row('skipVoteMin').isVisible()), 'directo: no se ven las filas de votos');
+      expect(!(await row('skipVotePct').isVisible()) && !(await row('skipVoteFixed').isVisible()) && !(await live.isVisible()), 'directo: no se ven las filas de votos');
       // esperas solo si alguien puede pausar o saltar directo
       await seg('Pausar y reanudar', 'Solo yo').click();
       await seg('Saltar canción', 'Solo yo').click();
