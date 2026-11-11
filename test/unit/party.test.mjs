@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Party, PartyError, validateSettings } from '../../src/party.js';
-import { Store, defaultState } from '../../src/store.js';
+import { Store, defaultState, migrateSettings } from '../../src/store.js';
 
 function mk() {
   const clock = { t: 1_000_000 };
@@ -129,24 +129,54 @@ test('noRepeat, cancion sonando, explicitas y duracion', () => {
   throwsCode(() => party.addTrack(a, tr(1).uri), 'closed');
 });
 
-test('umbral de votos de salto: max(min, ceil(activos*pct))', () => {
+test('umbral de votos de salto por porcentaje', () => {
   const { party, join, state } = mk();
   state.nowPlaying = { trackId: 'x', skipVotes: [] };
-  const gs = ['A', 'B', 'C', 'D', 'E'].map(join);
-  state.settings.skipVotePct = 40; state.settings.skipVoteMin = 2;
-  assert.equal(party.skipNeeded(), 2);
-  let r = party.skipVote(gs[0]);
-  assert.deepEqual([r.reached, r.votes, r.needed], [false, 1, 2]);
+  state.settings.skipVoteMode = 'pct'; state.settings.skipVotePct = 50;
+  const gs = [];
+  const expected = new Map([[0, 1], [1, 1], [3, 2], [10, 5]]);
+  for (let n = 0; n <= 10; n++) {
+    if (expected.has(n)) assert.equal(party.skipNeeded(), expected.get(n), `${n} activos al 50 %`);
+    if (n < 10) gs.push(join('G' + n));
+  }
+  party.skipVote(gs[0]); const r = party.skipVote(gs[1]);
+  assert.deepEqual([r.votes, r.needed, r.reached], [2, 5, false]);
+  party.skipVote(gs[0], false); assert.equal(party.currentSkipVotes().length, 1);
   party.skipVote(gs[0]);   // idempotente
-  assert.equal(party.currentSkipVotes().length, 1);
-  r = party.skipVote(gs[0], false); assert.equal(r.votes, 0);
-  party.skipVote(gs[0]); r = party.skipVote(gs[1]);
-  assert.equal(r.reached, true);
-  const more = Array.from({ length: 10 }, (_, i) => join('Z' + i));
-  assert.equal(party.skipNeeded(), 6);   // 15 * 40% = 6
-  assert.ok(more.length);
-  state.settings.skipVoteMin = 9;
-  assert.equal(party.skipNeeded(), 9);
+  party.skipVote(gs[0]);
+  assert.equal(party.currentSkipVotes().length, 2);
+});
+
+test('umbral de votos de salto con numero fijo: nunca imposible', () => {
+  const { party, join, state } = mk();
+  state.settings.skipVoteMode = 'fixed';
+  state.settings.skipVoteFixed = 20;
+  assert.equal(party.skipNeeded(), 1);   // 0 activos
+  for (const n of ['A', 'B', 'C']) join(n);
+  assert.equal(party.skipNeeded(), 3);   // 20 pero solo hay 3
+  state.settings.skipVoteFixed = 2;
+  for (let i = 0; i < 7; i++) join('Z' + i);
+  assert.equal(party.skipNeeded(), 2);   // 10 activos
+});
+
+test('migracion de ajustes de votos de salto', () => {
+  const m = (o) => { const st = { ...o }; const changed = migrateSettings(st); return [st, changed]; };
+  assert.deepEqual(m({ skipVotePct: 40, skipVoteMin: 2 }), [{ skipVotePct: 40, skipVoteMode: 'pct' }, true]);
+  assert.deepEqual(m({ skipVotePct: 43, skipVoteMin: 9 }), [{ skipVotePct: 43, skipVoteMode: 'fixed', skipVoteFixed: 9 }, true]);
+  assert.deepEqual(m({ skipVotePct: 5, skipVoteMin: 1 }), [{ skipVotePct: 10, skipVoteMode: 'pct' }, true]);
+  assert.deepEqual(m({ skipVotePct: 40, skipVoteMin: 30 })[0].skipVoteFixed, 20);
+  const done = { skipVoteMode: 'fixed', skipVotePct: 60, skipVoteFixed: 4 };
+  assert.deepEqual(m(done), [done, false]);
+  // al cargar state.json: se migra, se aplican los valores por defecto y se persiste
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fiesta-mig-'));
+  fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ settings: { skipVotePct: 43, skipVoteMin: 9, ordering: 'fifo' } }));
+  const store = new Store(dir, { debounceMs: 5 }).load();
+  const st = store.state.settings;
+  assert.equal(st.skipVoteMode, 'fixed'); assert.equal(st.skipVoteFixed, 9); assert.equal(st.ordering, 'fifo');
+  assert.ok(!('skipVoteMin' in st));
+  store.flush();
+  assert.ok(!('skipVoteMin' in JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')).settings));
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('los invitados inactivos no cuentan para el umbral', () => {
@@ -213,7 +243,7 @@ test('terminar la fiesta invalida invitados', () => {
 
 test('validacion de ajustes', () => {
   assert.deepEqual(validateSettings({ skipVotePct: 50, ordering: 'fifo', allowAdd: false }), { skipVotePct: 50, ordering: 'fifo', allowAdd: false });
-  for (const bad of [{ skipVotePct: 0 }, { skipVotePct: 101 }, { skipVotePct: 1.5 }, { skipVotePct: '5' }, { ordering: 'x' }, { allowAdd: 'si' }, { nope: 1 }, { maxDurationMin: 0 }, { noRepeatMin: -1 }, null, []]) {
+  for (const bad of [{ skipVotePct: 0 }, { skipVotePct: 5 }, { skipVoteFixed: 25 }, { skipVoteFixed: 0 }, { skipVoteMode: 'x' }, { skipVoteMin: 2 }, { skipVotePct: 101 }, { skipVotePct: 1.5 }, { skipVotePct: '5' }, { ordering: 'x' }, { allowAdd: 'si' }, { nope: 1 }, { maxDurationMin: 0 }, { noRepeatMin: -1 }, null, []]) {
     assert.throws(() => validateSettings(bad), PartyError, JSON.stringify(bad));
   }
 });

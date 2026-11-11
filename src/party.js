@@ -18,8 +18,9 @@ const FAREWELL_TTL_MS = 24 * 60 * 60 * 1000;
 const SETTING_RULES = {
   pauseMode: { type: 'enum', values: ['direct', 'admin'] },
   skipMode: { type: 'enum', values: ['direct', 'vote', 'admin'] },
-  skipVotePct: { type: 'int', min: 1, max: 100 },
-  skipVoteMin: { type: 'int', min: 1, max: 50 },
+  skipVoteMode: { type: 'enum', values: ['pct', 'fixed'] },
+  skipVotePct: { type: 'int', min: 10, max: 100 },
+  skipVoteFixed: { type: 'int', min: 1, max: 20 },
   maxQueuedPerGuest: { type: 'int', min: 1, max: 20 },
   addCooldownSec: { type: 'int', min: 0, max: 300 },
   controlCooldownSec: { type: 'int', min: 0, max: 600 },
@@ -504,7 +505,9 @@ export class Party {
 
   skipNeeded() {
     const st = this.settings;
-    return Math.max(st.skipVoteMin, Math.ceil((this.activeCount() * st.skipVotePct) / 100));
+    const active = this.activeCount();
+    if (st.skipVoteMode === 'fixed') return Math.max(1, Math.min(st.skipVoteFixed, active));
+    return Math.max(1, Math.ceil((active * st.skipVotePct) / 100));
   }
   currentSkipVotes() {
     const np = this.s.nowPlaying;
