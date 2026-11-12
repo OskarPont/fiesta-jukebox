@@ -52,6 +52,7 @@
         <span class="logo">fiesta<span class="dot">.</span></span>
         <span id="partyName" class="party-name ellipsis"></span>
         <button id="meBtn" class="me-btn" type="button" aria-label="Cambiar mi nombre"></button>
+        <button id="helpBtn" class="help-btn" type="button" aria-label="Cómo funciona" aria-haspopup="dialog"></button>
       </header>
 
       <div id="banner" class="banner" role="status" hidden></div>
@@ -98,11 +99,7 @@
       <p id="quota" class="quota"></p>
 
       <section class="queue-sec" aria-label="Cola">
-        <div class="sec-head"><h3>Cola</h3><span id="queueCount" class="chip">0</span><button id="helpBtn" class="icon-btn help-btn" type="button" aria-label="Cómo funciona" aria-expanded="false" aria-controls="helpCard">?</button></div>
-        <div id="helpCard" class="help-card" role="region" aria-labelledby="helpTitle" hidden>
-          <div class="help-head"><h4 id="helpTitle">Cómo funciona</h4><button id="helpClose" class="icon-btn" type="button" aria-label="Cerrar la ayuda">✕</button></div>
-          <ul id="helpList" class="help-list"></ul>
-        </div>
+        <div class="sec-head"><h3>Cola</h3><span id="queueCount" class="chip">0</span></div>
         <ul id="queue" class="queue"></ul>
         <div id="queueEmpty" class="empty" hidden>
           <span id="emptyIco"></span>
@@ -128,6 +125,17 @@
         <button type="submit" class="btn btn-primary">Guardar</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="helpDlg" class="dlg help-dlg" aria-labelledby="helpTitle">
+    <div class="help-wrap">
+      <div class="help-head">
+        <h2 id="helpTitle" class="help-title" tabindex="-1" autofocus>Cómo funciona</h2>
+        <button id="helpClose" class="icon-btn" type="button" aria-label="Cerrar"></button>
+      </div>
+      <ul id="helpList" class="help-list"></ul>
+      <button id="helpOk" class="btn btn-block" type="button">Entendido</button>
+    </div>
   </dialog>
 
   <script type="module" src="app.js"></script>

@@ -191,8 +191,10 @@ function render(st) {
   renderControls();
   renderQuota();
   renderQueue(st);
+  renderHelp(st);
   renderHistory(st);
   updateBanner();
+  maybeAutoHelp();
   if (!$('results').hidden) renderResults();
   tick();
 }
@@ -340,45 +342,61 @@ function renderQuota() {
 // ---------- cola ----------
 let queuePos = new Map(); // qid -> puesto (1 = la siguiente)
 
-// ---------- ayuda «Cómo funciona» ----------
+// ---------- ayuda «Cómo funciona» (panel de la cabecera) ----------
 const HELP_KEY = 'fiesta.help.seen';
-let helpOpen = null;   // null = aun sin decidir en esta carga
+const helpDlg = $('helpDlg');
+setIcon($('helpBtn'), 'help');
+setIcon($('helpClose'), 'x');
 
-function setHelp(open) {
-  helpOpen = open;
-  $('helpCard').hidden = !open;
-  $('helpBtn').setAttribute('aria-expanded', String(open));
-}
-$('helpBtn').addEventListener('click', () => setHelp(!helpOpen));
-$('helpClose').addEventListener('click', () => {
-  try { store.set(HELP_KEY, '1'); } catch { /* sin almacenamiento */ }
-  setHelp(false);
-  $('helpBtn').focus();
-});
-
-function renderHelp(st) {
-  if (helpOpen === null) {
-    let seen = false;
-    try { seen = !!store.get(HELP_KEY); } catch { /* */ }
-    setHelp(!seen);
-  }
+function helpRows(st) {
   const s = st.settings || {};
-  const lines = [];
-  lines.push(s.ordering === 'fifo' ? 'La cola va por orden de llegada' : '↑ Vota una canción para que suene antes');
+  const rows = [];
+  if (s.maxQueuedPerGuest) rows.push(['music', 'Pon tus canciones', `Hasta ${s.maxQueuedPerGuest} a la vez en la cola`]);
+  if (s.ordering === 'fifo') rows.push(['list', 'La cola va por orden', 'Suenan en el orden en que se piden']);
+  else rows.push(['up', 'Vota con la flecha', 'Las más votadas suenan antes', true]);
   if (s.skipMode === 'vote') {
     const n = st.skipNeeded;
-    lines.push(n ? `Saltar: ${n === 1 ? 'hace' : 'hacen'} falta ${plural(n, 'voto', 'votos')}` : 'Saltar: hacen falta votos de la gente');
-  } else if (s.skipMode === 'direct') lines.push('Cualquiera puede saltar la canción');
-  if (s.maxQueuedPerGuest) lines.push(`Puedes tener ${plural(s.maxQueuedPerGuest, 'canción', 'canciones')} a la vez en la cola`);
-  if (s.pauseMode === 'direct') lines.push('Cualquiera puede pausar la música');
-  const ul = $('helpList');
-  const cur = [...ul.children].map((li) => li.textContent);
-  if (cur.length === lines.length && cur.every((t, i) => t === lines[i])) return;
-  ul.replaceChildren(...lines.map((t) => el('li', {}, t)));
+    rows.push(['skip', 'Salta entre todos', n ? `Con ${plural(n, 'voto', 'votos')} se pasa a la siguiente` : 'Con los votos de la gente se pasa a la siguiente', true]);
+  } else if (s.skipMode === 'direct') rows.push(['skip', 'Salta cuando quieras', 'Cualquiera puede pasar a la siguiente']);
+  if (s.pauseMode === 'direct' && !st.player?.isIphone) rows.push(['pause', 'Pausa si hace falta', 'Cualquiera puede pausar la música']);
+  rows.push(['heart', 'Dale like a lo que suena', 'Cuenta para la canción de la noche', true]);
+  return rows;
+}
+
+let helpKey = '';
+function renderHelp(st) {
+  const rows = helpRows(st);
+  const key = JSON.stringify(rows);
+  if (key === helpKey) return;
+  helpKey = key;
+  $('helpList').replaceChildren(...rows.map(([ico, title, sub, social]) => el('li', { class: 'help-row' },
+    el('span', { class: 'help-ico' + (social ? ' social' : ''), 'aria-hidden': 'true' }, icon(ico)),
+    el('div', { class: 'help-txt' }, el('span', { class: 'help-t', text: title }), el('span', { class: 'help-s', text: sub })))));
+}
+
+function openHelp() {
+  if (state) renderHelp(state);
+  if (helpDlg.open) return;
+  if (helpDlg.showModal) helpDlg.showModal(); else helpDlg.setAttribute('open', '');
+}
+const closeHelp = () => { if (helpDlg.open) helpDlg.close(); };
+$('helpBtn').addEventListener('click', openHelp);
+$('helpClose').addEventListener('click', closeHelp);
+$('helpOk').addEventListener('click', closeHelp);
+helpDlg.addEventListener('click', (e) => { if (e.target === helpDlg) closeHelp(); });   // fondo
+helpDlg.addEventListener('close', () => {
+  store.set(HELP_KEY, '1');
+  $('helpBtn').focus({ preventScroll: true });
+});
+// primera vez en este dispositivo: se abre sola una vez, ya con la vista principal a la vista
+let helpAuto = false;
+function maybeAutoHelp() {
+  if (helpAuto) return;
+  helpAuto = true;
+  if (!store.get(HELP_KEY)) openHelp();
 }
 
 function renderQueue(st) {
-  renderHelp(st);
   const list = $('queue');
   queuePos = new Map(st.queue.map((q, i) => [q.qid, i + 1]));
   reconcile(list, st.queue, (q) => q.qid, createQueueItem, updateQueueItem);

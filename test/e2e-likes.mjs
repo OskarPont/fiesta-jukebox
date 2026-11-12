@@ -89,6 +89,8 @@ async function newCtx(browser, kind) {
       : kind === 'laptop' ? { viewport: { width: 1366, height: 768 } }
         : { viewport: { width: 1280, height: 900 } };
   const ctx = await browser.newContext({ ...opts, locale: 'es-ES', baseURL: BASE + '/' });
+  // la ayuda «Cómo funciona» se abre sola la primera vez: marcarla como vista (una vez por pestaña) para que no tape los pasos
+  await ctx.addInitScript(() => { try { if (!sessionStorage.getItem('__t')) { sessionStorage.setItem('__t', '1'); localStorage.setItem('fiesta.help.seen', '1'); } } catch { /* sin almacenamiento */ } });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   return ctx;
 }
