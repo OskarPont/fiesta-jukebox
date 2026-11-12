@@ -213,14 +213,21 @@ async function main() {
       const live = admin.locator('#skipLive');
       const liveText = async () => ((await live.textContent()) || '').trim();
       const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+      // misma frase que el panel en cada caso (sin activos, uno, todos, fijo mayor que los activos o lo normal)
+      const liveFor = (needed, active, mode, fixed) => {
+        if (active === 0) return 'Ahora no hay invitados activos: con 1 voto se saltaría.';
+        if (active === 1) return 'Ahora: basta con el voto del único invitado activo.';
+        if (needed >= active) return `Ahora: tienen que votar los ${active} invitados activos${mode === 'fixed' && fixed > active ? ` (pides ${fixed}, pero solo hay ${active})` : ''}.`;
+        return `Ahora: ${plural(needed, 'voto', 'votos')} de ${active} invitados activos.`;
+      };
       const expectLive = async (what) => {
         await waitFor(async () => {
-          const ss = (await api(adminCtx, 'GET', 'admin/status')).body;
-          return (await liveText()) === `Ahora: ${plural(ss.skipNeeded, 'voto', 'votos')} de ${plural(ss.activeGuests, 'invitado activo', 'invitados activos')}`;
+          const ss = (await api(adminCtx, 'GET', 'admin/status')).body; const cfg = await st();
+          return (await liveText()) === liveFor(ss.skipNeeded, ss.activeGuests, cfg.skipVoteMode, cfg.skipVoteFixed);
         }, { msg: `#skipLive no coincide con el servidor (${what}): ${await liveText()}` });
       };
       await expectLive('porcentaje');
-      expect(/^Ahora: \d+ votos? de \d+ invitados? activos?$/.test(await liveText()), 'formato de #skipLive: ' + await liveText());
+      expect(!/\b0 invitados\b/.test(await liveText()) && !/1 voto de 1 invitado/.test(await liveText()), 'frase coherente: ' + await liveText());
       await admin.locator('#set-skipVotePct').fill('100');
       await admin.locator('#set-skipVotePct').dispatchEvent('input');
       await admin.locator('#set-skipVotePct').dispatchEvent('change');
@@ -231,10 +238,18 @@ async function main() {
       await waitFor(async () => (await st()).skipVoteMode === 'fixed', { msg: 'modo no guardado' });
       await admin.locator('#set-skipVoteFixed').fill('1');
       await admin.locator('#set-skipVoteFixed').dispatchEvent('input');
-      expect(await liveText() === `Ahora: 1 voto de ${plural((await api(adminCtx, 'GET', 'admin/status')).body.activeGuests, 'invitado activo', 'invitados activos')}`, 'vista previa inmediata: ' + await liveText());
+      const act = (await api(adminCtx, 'GET', 'admin/status')).body.activeGuests;
+      expect(await liveText() === liveFor(1, act, 'fixed', 1), 'vista previa inmediata: ' + await liveText());
       await admin.locator('#set-skipVoteFixed').dispatchEvent('change');
       await waitFor(async () => (await st()).skipVoteFixed === 1, { msg: 'fijo no guardado' });
       await expectLive('fijo 1');
+      // número fijo mayor que los activos: lo dice en vez de prometer algo imposible
+      await admin.locator('#set-skipVoteFixed').fill('20');
+      await admin.locator('#set-skipVoteFixed').dispatchEvent('input');
+      await admin.locator('#set-skipVoteFixed').dispatchEvent('change');
+      await waitFor(async () => (await st()).skipVoteFixed === 20, { msg: 'fijo 20 no guardado' });
+      await expectLive('fijo 20');
+      if (act >= 2) expect((await liveText()).includes(`(pides 20, pero solo hay ${act})`), 'fijo > activos lo explica: ' + await liveText());
       await seg('Saltar canción', 'Directo').click();
       expect(!(await row('skipVotePct').isVisible()) && !(await row('skipVoteFixed').isVisible()) && !(await live.isVisible()), 'directo: no se ven las filas de votos');
       // esperas solo si alguien puede pausar o saltar directo
@@ -335,7 +350,9 @@ async function main() {
       }
       expect(!(await seenToasts(g[1])).some((t) => t.includes(D.name) || t.startsWith('Añadida')), 'otro invitado no ve el aviso de una canción ajena');
       // el panel agrupa avisos seguidos («X y N más añadieron canciones»): ve el nombre o el aviso agrupado
-      expect((await seenToasts(admin)).some((t) => t.includes(D.name) || /añadi(ó|eron)/.test(t)), 'el panel sigue viendo los avisos de canciones añadidas');
+      // el aviso puede ser uno nuevo o el agrupado que ya estaba en pantalla y se actualiza: se mira lo visto y lo que hay ahora
+      const adminToasts = async () => [...(await seenToasts(admin)), ...(await admin.locator('#toasts .toast').allTextContents())];
+      await waitFor(async () => (await adminToasts()).some((t) => t.includes(D.name) || /añadi(ó|eron)/.test(t)), { timeout: 5000, msg: 'el panel sigue viendo los avisos de canciones añadidas: ' + (await adminToasts()).join(' | ') });
       // abajo y sin tapar el buscador
       const pos = await g[0].evaluate(() => { const h = document.getElementById('toasts').getBoundingClientRect(); return { bottom: h.bottom, vh: innerHeight }; });
       expect(pos.bottom > pos.vh * 0.85, 'avisos abajo: ' + JSON.stringify(pos));
