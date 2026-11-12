@@ -386,7 +386,9 @@ $('helpOk').addEventListener('click', closeHelp);
 helpDlg.addEventListener('click', (e) => { if (e.target === helpDlg) closeHelp(); });   // fondo
 helpDlg.addEventListener('close', () => {
   store.set(HELP_KEY, '1');
-  $('helpBtn').focus({ preventScroll: true });
+  // tras cerrar, el navegador devuelve el foco a donde estaba antes de abrir (en la apertura
+  // automática, a nada): se mueve al botón en el siguiente fotograma para que no lo pise
+  requestAnimationFrame(() => $('helpBtn').focus({ preventScroll: true }));
 });
 // primera vez en este dispositivo: se abre sola una vez, ya con la vista principal a la vista
 let helpAuto = false;

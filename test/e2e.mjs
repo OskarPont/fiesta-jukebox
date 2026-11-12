@@ -1542,7 +1542,7 @@ async function main() {
       // Entendido: cierra y el foco vuelve al boton de la cabecera
       await pg.locator('#helpOk').click();
       expect(await dlg.isHidden(), 'cerrado');
-      expect(await focusId() === 'helpBtn', 'foco en el boton de ayuda tras Entendido: ' + await focusId());
+      await waitFor(async () => (await focusId()) === 'helpBtn', { msg: 'foco en el boton de ayuda tras Entendido' });
       expect(await pg.evaluate(() => localStorage.getItem('fiesta.help.seen') === '1'), 'se recuerda');
       await reloadMain();
       await sleep(400);
@@ -1553,7 +1553,7 @@ async function main() {
       await dlg.waitFor({ state: 'visible' });
       await pg.keyboard.press('Escape');
       await dlg.waitFor({ state: 'hidden' });
-      expect(await focusId() === 'helpBtn', 'foco en el boton tras Escape');
+      await waitFor(async () => (await focusId()) === 'helpBtn', { msg: 'foco en el boton tras Escape' });
       // cruz y fondo
       await btn.click();
       await pg.locator('#helpClose').click();
