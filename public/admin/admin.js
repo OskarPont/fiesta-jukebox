@@ -70,6 +70,35 @@ function seg(options, onChange) {
   return { el: wrap, set(v) { for (const b of btns) b.setAttribute('aria-pressed', String(b.dataset.v === String(v))); } };
 }
 function chip(text, cls = '') { return el('span', { class: `chip ${cls}`, text }); }
+/**
+ * Tarjeta que se recoge a una sola línea cuando todo va bien: en la cabecera, un chip con el estado y un botón
+ * «Cambiar» que la despliega entera. Con un problema (ok = false) se ve completa y sin botón.
+ */
+function compactHead(c, id, onToggle) {
+  const header = c.root.querySelector('header');
+  const sum = el('span', { class: 'chip cmp-sum', hidden: true });
+  const toggle = el('button', { class: 'btn btn-sm cmp-toggle', type: 'button', 'aria-expanded': 'false', 'aria-controls': `${id}-body`, hidden: true, text: 'Cambiar' });
+  c.body.id = `${id}-body`;
+  c.sub.hidden = true;
+  header.querySelector('h2').after(sum);
+  header.append(toggle);
+  let expanded = false;
+  toggle.addEventListener('click', () => { expanded = !expanded; onToggle(expanded); });
+  return {
+    get compact() { return c.root.classList.contains('compact'); },
+    apply(ok, text, cls = '') {
+      if (!ok) expanded = false;
+      const compact = ok && !expanded;
+      c.root.classList.toggle('compact', compact);
+      c.body.hidden = compact;
+      sum.hidden = !compact;
+      if (compact) { setText(sum, text); sum.className = `chip cmp-sum ${cls}`.trim(); }
+      toggle.hidden = !ok;
+      setText(toggle, expanded ? 'Cerrar' : 'Cambiar');
+      toggle.setAttribute('aria-expanded', String(expanded));
+    },
+  };
+}
 
 // ---------- login ----------
 function showLogin(msg) {
@@ -117,6 +146,7 @@ cards.spotify = (() => {
   const credsFold = el('details', { class: 'fold' }, el('summary', { text: 'Credenciales de la app de Spotify' }), el('div', { class: 'stack' }, credsForm));
   const note = el('p', { class: 'hint', text: 'Durante la fiesta no añadas canciones a la cola desde la app de Spotify: las de los invitados irían detrás de las tuyas.' });
   c.body.append(status, guide, connectRow, credsFold, note);
+  const head = compactHead(c, 'card-spotify', () => cards.spotify.update(st));
 
   let guideBuilt = false;
   function buildGuide(uri) {
@@ -164,6 +194,9 @@ cards.spotify = (() => {
         // enseñar la URI tambien cuando ya hay credenciales (por si hay que corregirla)
         if (!connectRow.querySelector('.uri-row') && !sp.connected) connectRow.append(el('p', { class: 'hint', style: { width: '100%' }, text: `Redirect URI configurada en Spotify: ${sp.redirectUri}` }));
       }
+      // todo bien: una línea. Si falla algo (sin conectar, caduca pronto, sin Premium) se ve entera.
+      const ok = sp.configured && sp.connected && !(sp.daysLeft != null && sp.daysLeft < 14) && s.player.status !== 'premium_required';
+      head.apply(ok, `Conectado${sp.userName ? ' como ' + sp.userName : ''}`, 'ok');
     },
   };
 })();
@@ -176,10 +209,15 @@ cards.device = (() => {
   c.root.querySelector('header').append(refresh);
   const hint = el('p', { class: 'hint', text: 'Abre Spotify en el dispositivo de la fiesta (altavoz, PC, móvil) y dale a play una vez si no aparece.' });
   c.body.append(list, hint);
+  const head = compactHead(c, 'card-device', (open) => { cards.device.update(st); if (open) loadDevices(); });
   return {
     root: c.root,
     update(s) {
       const sp = s.admin.spotify;
+      // con el altavoz elegido y sonando bien: una línea con su nombre
+      const okDev = sp.connected && s.player.status === 'ok' && !!s.player.deviceName;
+      head.apply(okDev, s.player.deviceName || '');
+      refresh.hidden = head.compact;
       list.replaceChildren();
       if (!sp.connected) { list.append(el('p', { class: 'empty-note', text: 'Conecta Spotify para ver los dispositivos.' })); refresh.disabled = true; return; }
       refresh.disabled = false;
@@ -230,8 +268,7 @@ cards.party = (() => {
     el('div', { class: 'pin-box' }, pin, el('div', { class: 'qr-mini' }, qrImg)),
     el('div', { class: 'btns' },
       button('Nuevo PIN', { ico: 'refresh', onclick: async () => { await api('admin/party/pin', { method: 'POST', body: { kickAll: kickChk.checked } }); toast('PIN nuevo', 'ok', 1800); } }),
-      button('Copiar enlace', { ico: 'copy', onclick: async () => { await copyText(link()); toast('Enlace copiado', 'ok', 1800); } }),
-      el('a', { class: 'btn', href: '../pantalla/', target: '_blank', rel: 'noopener' }, icon('expand', 'sm'), 'Abrir pantalla')),
+      button('Copiar enlace', { ico: 'copy', onclick: async () => { await copyText(link()); toast('Enlace copiado', 'ok', 1800); } })),
     el('label', { class: 'check' }, kickChk, 'Al cambiar el PIN, expulsar a todos los invitados'),
     el('hr', { class: 'sep' }),
     confirmButton('Terminar fiesta', { ico: 'x', ask: 'Pulsa otra vez para terminar', onclick: async () => { await api('admin/party/stop', { method: 'POST', body: { kickAll: true } }); toast('Fiesta terminada', 'ok'); } }));
@@ -310,7 +347,6 @@ cards.player = (() => {
       setText(iosNote, 'iPhone: el volumen no se puede controlar desde aquí (usa los botones del móvil o del altavoz) y los invitados no ven el botón de pausa. Para poder reanudar, deja Spotify abierto en pantalla con el bloqueo automático en "Nunca".');
       if (document.activeElement !== vol && Date.now() - volBusy > 1500 && s.player.volume != null) { vol.value = String(s.player.volume); volOut.textContent = `${s.player.volume}%`; }
       status.replaceChildren(playerChip(s), s.player.deviceName ? el('span', { class: 'hint', text: `En: ${s.player.deviceName}` }) : null);
-      c.sub.textContent = s.party.active && s.queue.length ? `${s.queue.length} en cola` : '';
     },
   };
 })();
@@ -324,9 +360,10 @@ function playerChip(s) {
   return chip(text, cls);
 }
 
-// ---------- Ajustes ----------
-cards.settings = (() => {
-  const c = card('Ajustes', 'card-settings');
+// ---------- Ajustes (los comparten Cola e Invitados) ----------
+// Un solo juego de controles, ayudantes y guardado; cada tarjeta monta los suyos en un panel
+// que se abre con un engranaje de su cabecera. El guardado es uno solo (un aviso por tanda).
+const settings = (() => {
   const ctrls = {};
   let pending = {}; let saveTimer = null;
   function queueSave(key, value) {
@@ -402,44 +439,34 @@ cards.settings = (() => {
     renderSkipLive();
     for (const k of ['controlCooldownSec', 'globalControlCooldownSec']) if (rows[k]) rows[k].hidden = !direct;
   }
-  function group(id, title, open, ...kids) {
-    let isOpen = open;
-    try { const v = localStorage.getItem(`fiesta.set.${id}`); if (v === '1' || v === '0') isOpen = v === '1'; } catch { /* sin almacenamiento */ }
-    const d = el('details', { class: 'fold set-group', open: isOpen, dataset: { group: id } }, el('summary', { text: title }), el('div', { class: 'set-body' }, ...kids));
-    d.addEventListener('toggle', () => { try { localStorage.setItem(`fiesta.set.${id}`, d.open ? '1' : '0'); } catch { /* sin almacenamiento */ } });
-    return d;
-  }
-  let pauseRow = null;
-  const pauseIosNote = el('p', { class: 'hint', hidden: true, text: 'Bloqueado con iPhone: los invitados no pueden pausar porque iOS duerme Spotify al pausar y no se podría reanudar.' });
   const sec = (n) => (n === 0 ? 'sin espera' : n >= 60 ? `${Math.floor(n / 60)} min${n % 60 ? ' ' + (n % 60) + ' s' : ''}` : `${n} s`);
-  c.body.append(
-    group('cola', 'Cola', true,
-      switchSetting('allowAdd', 'Cola abierta', 'Si la cierras, nadie puede añadir canciones.'),
-      rangeSetting('maxQueuedPerGuest', 'Canciones por invitado', 'Cuántas puede tener pendientes a la vez.', 1, 20, 1, (v) => `${v}`),
-      rangeSetting('addCooldownSec', 'Espera entre canciones añadidas', 'Por invitado.', 0, 300, 5, sec),
-      segSetting('ordering', 'Orden de la cola', null, [['votes', 'Por votos'], ['fifo', 'Orden de llegada']]),
-      rangeSetting('maxDurationMin', 'Duración máxima', 'Canciones más largas no se pueden añadir.', 1, 60, 1, (v) => `${v} min`),
-      rangeSetting('noRepeatMin', 'No repetir canciones', 'No se puede añadir algo que sonó hace menos de:', 0, 240, 5, (v) => (v === 0 ? 'se puede repetir' : `${v} min`)),
-      switchSetting('allowExplicit', 'Permitir canciones explícitas')),
-    group('controles', 'Controles de los invitados', false,
-      pauseRow = segSetting('pauseMode', 'Pausar y reanudar', 'Quién puede pausar la música.', [['direct', 'Cualquiera'], ['admin', 'Solo yo']]),
-      pauseIosNote,
-      segSetting('skipMode', 'Saltar canción', 'Cómo se salta la canción que suena.', [['direct', 'Directo'], ['vote', 'Por votos'], ['admin', 'Solo yo']]),
-      segSetting('skipVoteMode', '¿Cuántos votos hacen falta?', 'Invitados activos: quienes tienen la app abierta o la han usado en los últimos 10 min.', [['pct', 'Parte de la gente'], ['fixed', 'Número fijo']]),
-      rangeSetting('skipVotePct', 'Parte de la gente que tiene que votar', null, 10, 100, 5, (v) => `${v} %`),
-      rangeSetting('skipVoteFixed', 'Votos que hacen falta', null, 1, 20, 1, (v) => `${v} ${v === 1 ? 'voto' : 'votos'}`),
-      skipLive,
-      rangeSetting('controlCooldownSec', 'Espera para pausar o saltar', 'Por invitado, en modo directo.', 0, 600, 5, sec),
-      rangeSetting('globalControlCooldownSec', 'Espera global para pausar o saltar', 'Evita guerras de pausa entre invitados.', 0, 300, 1, sec)));
+
+  /**
+   * Engranaje de la cabecera + panel con los ajustes, que va dentro de la tarjeta encima del contenido.
+   * Recuerda si estaba abierto (localStorage, si hay).
+   */
+  function panel({ key, label, rows: kids }) {
+    const id = `${key}-settings`;
+    const store = `fiesta.set.open.${key}`;
+    let open = false;
+    try { open = localStorage.getItem(store) === '1'; } catch { /* sin almacenamiento */ }
+    const body = el('div', { class: 'set-panel', id, role: 'group', 'aria-label': label }, ...kids);
+    const btn = el('button', { class: 'icon-btn gear', type: 'button', title: label, 'aria-label': label, 'aria-expanded': 'false', 'aria-controls': id }, icon('settings'));
+    const apply = () => { btn.setAttribute('aria-expanded', String(open)); body.hidden = !open; };
+    btn.addEventListener('click', () => {
+      open = !open; apply();
+      try { localStorage.setItem(store, open ? '1' : '0'); } catch { /* sin almacenamiento */ }
+    });
+    apply();
+    return { btn, body };
+  }
+
   return {
-    root: c.root,
-    update(s) {
+    segSetting, rangeSetting, switchSetting, skipLive, sec, panel,
+    sync(s) {
       for (const [k, ctl] of Object.entries(ctrls)) ctl.set(s.settings[k]);
       srv = { needed: s.skipNeeded, active: s.activeGuests, mode: s.settings.skipVoteMode, pct: s.settings.skipVotePct, fixed: s.settings.skipVoteFixed };
       refreshVisibility();
-      const ios = !!s.player.isIphone;
-      pauseIosNote.hidden = !ios;
-      if (pauseRow) { pauseRow.classList.toggle('locked', ios); for (const b of pauseRow.querySelectorAll('button')) b.disabled = ios; }
     },
   };
 })();
@@ -451,9 +478,22 @@ cards.queue = (() => {
   const empty = el('p', { class: 'empty-note', text: 'La cola está vacía.' });
   const clear = confirmButton('Vaciar cola', { ico: 'trash', ask: '¿Vaciar toda?', onclick: async () => { await api('admin/queue/clear', { method: 'POST' }); } });
   clear.classList.add('btn-sm');
-  c.root.querySelector('header').append(clear);
+  const { segSetting, rangeSetting, switchSetting, sec } = settings;
+  const gear = settings.panel({
+    key: 'queue', label: 'Ajustes de la cola',
+    rows: [
+      switchSetting('allowAdd', 'Cola abierta', 'Si la cierras, nadie puede añadir canciones.'),
+      rangeSetting('maxQueuedPerGuest', 'Canciones por invitado', 'Cuántas puede tener pendientes a la vez.', 1, 20, 1, (v) => `${v}`),
+      rangeSetting('addCooldownSec', 'Espera entre canciones añadidas', 'Por invitado.', 0, 300, 5, sec),
+      segSetting('ordering', 'Orden de la cola', null, [['votes', 'Por votos'], ['fifo', 'Orden de llegada']]),
+      rangeSetting('maxDurationMin', 'Duración máxima', 'Canciones más largas no se pueden añadir.', 1, 60, 1, (v) => `${v} min`),
+      rangeSetting('noRepeatMin', 'No repetir canciones', 'No se puede añadir algo que sonó hace menos de:', 0, 240, 5, (v) => (v === 0 ? 'se puede repetir' : `${v} min`)),
+      switchSetting('allowExplicit', 'Permitir canciones explícitas'),
+    ],
+  });
+  c.root.querySelector('header').append(el('div', { class: 'hd-acts' }, clear, gear.btn));
   const live = el('p', { class: 'sr-only', id: 'queueLive', 'aria-live': 'polite' });
-  c.body.append(list, empty, live, el('p', { class: 'hint', text: 'Arrastra el asa para cambiar el orden. Al mover algo a mano, deja de depender de los votos.' }));
+  c.body.append(gear.body, list, empty, live, el('p', { class: 'hint', text: 'Arrastra el asa para cambiar el orden. Al mover algo a mano, deja de depender de los votos.' }));
 
   /** Filas movibles (sin las ya enviadas a Spotify), en el orden actual del DOM. */
   const movable = () => [...list.children].filter((x) => !x.classList.contains('fed'));
@@ -601,6 +641,24 @@ function attachDrag(li, list, announce) {
 // ---------- Invitados ----------
 cards.guests = (() => {
   const c = card('Invitados', 'card-guests');
+  const { segSetting, rangeSetting, sec, skipLive } = settings;
+  const pauseIosNote = el('p', { class: 'hint', hidden: true, text: 'Bloqueado con iPhone: los invitados no pueden pausar porque iOS duerme Spotify al pausar y no se podría reanudar.' });
+  let pauseRow = null;
+  const gear = settings.panel({
+    key: 'guests', label: 'Ajustes de los invitados',
+    rows: [
+      pauseRow = segSetting('pauseMode', 'Pausar y reanudar', 'Quién puede pausar la música.', [['direct', 'Cualquiera'], ['admin', 'Solo yo']]),
+      pauseIosNote,
+      segSetting('skipMode', 'Saltar canción', 'Cómo se salta la canción que suena.', [['direct', 'Directo'], ['vote', 'Por votos'], ['admin', 'Solo yo']]),
+      segSetting('skipVoteMode', '¿Cuántos votos hacen falta?', 'Invitados activos: quienes tienen la app abierta o la han usado en los últimos 10 min.', [['pct', 'Parte de la gente'], ['fixed', 'Número fijo']]),
+      rangeSetting('skipVotePct', 'Parte de la gente que tiene que votar', null, 10, 100, 5, (v) => `${v} %`),
+      rangeSetting('skipVoteFixed', 'Votos que hacen falta', null, 1, 20, 1, (v) => `${v} ${v === 1 ? 'voto' : 'votos'}`),
+      skipLive,
+      rangeSetting('controlCooldownSec', 'Espera para pausar o saltar', 'Por invitado, en modo directo.', 0, 600, 5, sec),
+      rangeSetting('globalControlCooldownSec', 'Espera global para pausar o saltar', 'Evita guerras de pausa entre invitados.', 0, 300, 1, sec),
+    ],
+  });
+  c.root.querySelector('header').append(el('div', { class: 'hd-acts' }, gear.btn));
   const norm = (t) => String(t || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
   let term = '';                  // el filtro sobrevive a las actualizaciones de estado
   let lastGuests = [];
@@ -608,7 +666,7 @@ cards.guests = (() => {
   const list = el('ul', { class: 'ag' });
   const empty = el('p', { class: 'empty-note', text: 'Todavía no ha entrado nadie.' });
   const noMatch = el('p', { class: 'empty-note', text: 'Ningún invitado se llama así', hidden: true });
-  c.body.append(search, list, empty, noMatch);
+  c.body.append(gear.body, search, list, empty, noMatch);
   search.addEventListener('input', () => { term = search.value; render(); });
 
   // un solo menu abierto a la vez; se cierra con Escape, clic fuera o al abrir otro
@@ -694,6 +752,10 @@ cards.guests = (() => {
     update(s) {
       lastGuests = s.admin.guests;
       render();
+      const ios = !!s.player.isIphone;
+      pauseIosNote.hidden = !ios;
+      pauseRow.classList.toggle('locked', ios);
+      for (const b of pauseRow.querySelectorAll('button')) b.disabled = ios;
       c.sub.textContent = `${s.activeGuests} activos de ${lastGuests.filter((g) => !g.banned).length}`;
     },
   };
@@ -716,7 +778,7 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 function fmtDay(ts) { return ts ? new Date(ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : ''; }
 
 cards.history = (() => {
-  const c = card('Historial y playlists', 'card-history');
+  const c = card('Historial', 'card-history');
   let sel = 'current';            // 'current' o id de fiesta archivada
   let remote = null;              // {party, summary, history} de una fiesta pasada
   let remoteFor = null;
@@ -779,8 +841,7 @@ cards.history = (() => {
       createBtn.disabled = true;
     }
   }
-  const builder = el('details', { class: 'builder' },
-    el('summary', { text: 'Crear una playlist con esta fiesta' }),
+  const builder = el('div', { class: 'builder' },
     el('div', { class: 'stack' },
       el('div', { class: 'set' }, el('div', { class: 'lab', text: 'Qué canciones' }), filterSeg.el, minRow),
       el('div', { class: 'set' }, el('div', { class: 'lab', text: 'Qué cuenta' }), el('div', { class: 'desc', text: 'Para el mínimo y para ordenar por likes y votos.' }), typeSeg.el),
@@ -788,12 +849,35 @@ cards.history = (() => {
       el('div', { class: 'set inline' }, el('div', {}, el('div', { class: 'lab', text: 'Incluir canciones de relleno' }), el('div', { class: 'desc', text: 'Las que no pidió nadie.' })), el('label', { class: 'switch' }, fillIn, el('i'))),
       el('div', { class: 'set' }, el('div', { class: 'lab', text: 'Nombre' }), nameIn),
       preview, createBtn, result));
-  builder.addEventListener('toggle', () => { if (builder.open) loadPreview(); });
 
   // lista
   const list = el('ul', { class: 'ah' });
   const empty = el('p', { class: 'empty-note', text: 'Todavía no ha sonado nada.' });
-  c.body.append(partySel, sumBox, el('div', { class: 'row' }, showBtn), showHint, builder, list, empty);
+  // plegado por defecto; al abrirlo, tres apartados: Resumen, Canciones y Crear playlist
+  const sect = (id, title, ...kids) => el('section', { class: 'hsec', 'aria-labelledby': `hs-${id}` }, el('h3', { id: `hs-${id}`, text: title }), ...kids);
+  const hbody = el('div', { class: 'hist-body stack', id: 'card-history-body' },
+    partySel,
+    sect('resumen', 'Resumen', sumBox, el('div', { class: 'row' }, showBtn), showHint),
+    sect('canciones', 'Canciones', list, empty),
+    sect('playlist', 'Crear playlist', builder));
+  c.body.replaceWith(hbody);
+  const toggle = el('button', { class: 'btn btn-sm cmp-toggle', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'card-history-body' });
+  c.root.querySelector('header').append(toggle);
+  c.root.classList.add('hist');
+  let isOpen = false;
+  try { isOpen = localStorage.getItem('fiesta.hist.open') === '1'; } catch { /* sin almacenamiento */ }
+  function applyOpen() {
+    hbody.hidden = !isOpen;
+    toggle.setAttribute('aria-expanded', String(isOpen));
+    toggle.replaceChildren(icon(isOpen ? 'up' : 'down', 'sm'), el('span', { text: isOpen ? 'Cerrar' : 'Abrir' }));
+    toggle.setAttribute('aria-label', isOpen ? 'Cerrar el historial' : 'Abrir el historial');
+  }
+  toggle.addEventListener('click', () => {
+    isOpen = !isOpen; applyOpen();
+    try { localStorage.setItem('fiesta.hist.open', isOpen ? '1' : '0'); } catch { /* sin almacenamiento */ }
+    if (isOpen) { refresh(); loadPreview(); }
+  });
+  applyOpen();
 
   function create() {
     return el('li', { class: 'ah-item' }, el('img', { alt: '' }),
@@ -857,37 +941,41 @@ cards.history = (() => {
     renderSummary(sm);
     reconcile(list, hs, (h) => `${h.playedAt}-${h.trackId}`, create, upd);
     empty.hidden = hs.length > 0; list.hidden = hs.length === 0;
-    c.sub.textContent = hs.length ? plural(hs.length, 'canción', 'canciones') : '';
+    // una línea con lo que importa, también plegado: «12 canciones · 9 likes»
+    const sm0 = a.summary;
+    c.sub.textContent = sm0 && sm0.songs
+      ? [plural(sm0.songs, 'canción', 'canciones'), plural(sm0.playLikes, 'like', 'likes'), sm0.queueLikes ? plural(sm0.queueLikes, 'voto', 'votos') : null].filter(Boolean).join(' · ')
+      : 'Todavía no ha sonado nada';
     setText(showBtn.querySelector('span'), a.showSummary ? 'Quitar resumen de la pantalla' : 'Añadir resumen a la pantalla');
     showBtn.classList.toggle('btn-primary', !!a.showSummary);
     showBtn.disabled = !a.summary;
     if (document.activeElement !== nameIn && !nameIn.value) nameIn.placeholder = `${pname || 'Fiesta'} (${new Date().toLocaleDateString('es-ES')})`;
   }
 
-  return { root: c.root, update(s) { refresh(); if (builder.open && s.party.active && sel === 'current') schedulePreview(); } };
+  return { root: c.root, update(s) { refresh(); if (isOpen && s.party.active && sel === 'current') schedulePreview(); } };
 })();
 
 // ---------- orden de tarjetas ----------
 // Cada disposicion tiene un orden de lectura (movil, una columna) y un reparto fijo en dos columnas
 // (escritorio). Las columnas son contenedores reales: una tarjeta que crece no hace saltar a las demas.
 const LAYOUTS = {
-  // fiesta en marcha: lo que se toca cada pocos minutos, arriba
+  // fiesta en marcha: lo que se toca cada pocos minutos, arriba; la conexión, compacta al final
   fiesta: {
-    order: ['player', 'queue', 'party', 'guests', 'history', 'settings', 'device', 'spotify'],
-    a: ['player', 'queue', 'guests'],
-    b: ['party', 'history', 'settings', 'device', 'spotify'],
+    order: ['player', 'queue', 'party', 'guests', 'history', 'device', 'spotify'],
+    a: ['player', 'queue'],
+    b: ['party', 'guests', 'history', 'device', 'spotify'],
   },
   // Spotify listo y sin fiesta: lo primero es empezarla
   ready: {
-    order: ['party', 'player', 'queue', 'guests', 'history', 'settings', 'device', 'spotify'],
-    a: ['party', 'player', 'queue', 'guests'],
-    b: ['history', 'settings', 'device', 'spotify'],
+    order: ['party', 'player', 'queue', 'guests', 'history', 'device', 'spotify'],
+    a: ['party', 'player', 'queue'],
+    b: ['guests', 'history', 'device', 'spotify'],
   },
   // puesta en marcha: conectar Spotify, elegir dispositivo, empezar
   setup: {
-    order: ['spotify', 'device', 'party', 'player', 'queue', 'guests', 'settings', 'history'],
+    order: ['spotify', 'device', 'party', 'player', 'queue', 'guests', 'history'],
     a: ['spotify', 'device', 'party'],
-    b: ['player', 'queue', 'guests', 'settings', 'history'],
+    b: ['player', 'queue', 'guests', 'history'],
   },
 };
 const cardsHost = $('cards');
@@ -934,7 +1022,6 @@ function renderTop(s) {
   }
   if (on) {
     chips.append(chip(`Fiesta en marcha · ${s.activeGuests} ${s.activeGuests === 1 ? 'activo' : 'activos'}`, 'accent'));
-    chips.append(chip(`${s.queue.length} en cola`));
   } else chips.append(chip('Sin fiesta'));
   const pj = $('pinJump');
   const showPin = !!(on && s.admin.pin);
@@ -959,6 +1046,7 @@ function applyState(s) {
   if (!s.admin) return;
   layout(s);
   renderTop(s);
+  settings.sync(s);
   for (const c of Object.values(cards)) c.update(s);
   if (prevConnected !== s.admin.spotify.connected) {
     prevConnected = s.admin.spotify.connected;

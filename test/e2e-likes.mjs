@@ -45,6 +45,13 @@ async function waitFor(fn, { timeout = 5000, interval = 60, msg = 'waitFor' } = 
   throw new Error(`${msg} (timeout ${timeout} ms)${last ? ': ' + last.message : ''}`);
 }
 
+// ---------- panel: historial plegable (#36) ----------
+async function openHistory(page) {
+  const b = page.locator('#card-history .cmp-toggle');
+  if ((await b.getAttribute('aria-expanded')) !== 'true') await b.click();
+  await page.waitForSelector('#card-history .hist-body', { state: 'visible' });
+}
+
 // ---------- servidor ----------
 let server = null; let serverLog = '';
 async function startServer(speed = 1) {
@@ -238,6 +245,7 @@ async function main() {
     await guestAdd(g[2], C);
     await mockCmd('speed', 40);
     await waitFor(async () => (await g[0].textContent('#npTitle')).includes(C.name), { timeout: 12000, msg: 'C no suena' });
+    await openHistory(admin);
     await waitFor(async () => (await admin.locator('#card-history .ah-item').count()) >= 2, { msg: 'historial' });
     const titles = await admin.locator('#card-history .lk').evaluateAll((els) => els.map((e) => e.title));
     expect(titles.includes('2 likes · 0 votos') && titles.includes('1 like · 1 voto'), 'desglose en historial: ' + titles.join(' | '));
@@ -263,7 +271,7 @@ async function main() {
     expect(r.body.count === 1 && r.body.items[0].name === B.name, 'solo B tiene like en cola');
     r = await api(adminCtx, 'POST', 'admin/playlist/preview', { ...base, order: 'likes_desc', likeType: 'play' });
     expect(r.body.items[0].name === A.name, 'A primero por likes sonando');
-    await admin.click('#card-history .builder summary');
+    await openHistory(admin);
     await admin.locator('#card-history .builder .seg button', { hasText: 'Con mínimo de likes y votos' }).click();
     await admin.locator('#card-history .builder .seg button', { hasText: 'Solo likes' }).click();
     expect((await admin.locator('#card-history .builder .seg button', { hasText: 'Solo likes' }).getAttribute('aria-pressed')) === 'true', 'Solo likes seleccionado');
