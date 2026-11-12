@@ -346,3 +346,39 @@ test('la baja de un invitado no se puede deshacer', () => {
   assert.equal(party.lastRemoved, null);
   throwsCode(() => party.restoreTrack(i1.qid), 'cant_restore');
 });
+
+test('deshacer «Vaciar cola»: vuelven todas en su puesto; la enviada no se vacía (#39)', () => {
+  const { party, join, learn, tr, clock } = mk();
+  const a = join('A'); const b = join('B'); const c = join('C');
+  learn(1, 2, 3, 4);
+  const i1 = party.addTrack(a, tr(1).uri); clock.t += 10;
+  const i2 = party.addTrack(b, tr(2).uri); clock.t += 10;
+  const i3 = party.addTrack(c, tr(3).uri); clock.t += 10;
+  const i4 = party.addTrack(a, tr(4).uri);
+  party.vote(b, i3.qid); party.vote(a, i3.qid);
+  party.adminReorder([i2.qid, i3.qid, i1.qid, i4.qid]);
+  i1.fed = true; // la que ya va a sonar
+  const before = party.orderedQueue().map((x) => x.name);
+  assert.equal(party.clearQueue(), 3);
+  assert.deepEqual(party.orderedQueue().map((x) => x.name), ['T1']);
+  assert.equal(party.restoreCleared(), 3);
+  assert.deepEqual(party.orderedQueue().map((x) => x.name), before);
+  assert.equal(party.findItem(i3.qid).votes.length, 2);
+  assert.equal(party.lastCleared, null);
+});
+
+test('deshacer «Vaciar cola»: falla sin vaciado previo o a los 30 s y no duplica (#39)', () => {
+  const { party, join, learn, tr, clock } = mk();
+  const a = join('A');
+  learn(1, 2);
+  throwsCode(() => party.restoreCleared(), 'cant_restore');
+  const i1 = party.addTrack(a, tr(1).uri); clock.t += 10;
+  party.addTrack(a, tr(2).uri);
+  party.clearQueue();
+  clock.t += 30_001;
+  throwsCode(() => party.restoreCleared(), 'cant_restore');
+  party.s.queue.push(i1); // i1 vuelve a estar en la cola por otro camino
+  party.lastCleared = { items: [i1], at: clock.t };
+  assert.equal(party.restoreCleared(), 0);
+  assert.equal(party.s.queue.filter((q) => q.qid === i1.qid).length, 1);
+});

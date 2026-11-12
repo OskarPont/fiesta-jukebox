@@ -476,7 +476,18 @@ cards.queue = (() => {
   const c = card('Cola', 'card-queue');
   const list = el('ul', { class: 'aq' });
   const empty = el('p', { class: 'empty-note', text: 'La cola está vacía.' });
-  const clear = confirmButton('Vaciar cola', { ico: 'trash', ask: '¿Vaciar toda?', onclick: async () => { await api('admin/queue/clear', { method: 'POST' }); } });
+  const clear = confirmButton('Vaciar cola', { ico: 'trash', ask: '¿Vaciar toda?', onclick: async () => {
+    const r = await api('admin/queue/clear', { method: 'POST' });
+    const n = r?.cleared || 0;
+    if (!n) return;
+    toast(`Cola vaciada: ${n} ${n === 1 ? 'canción' : 'canciones'}`, 'ok', 8000, {
+      label: 'Deshacer',
+      onclick: async (t) => {
+        try { const b = await api('admin/queue/clear/restore', { method: 'POST' }); t.remove(); toast(`Restauradas ${b.restored}`, 'ok', 2000); }
+        catch (e) { t.remove(); toast(e.message, 'error', 4000); }
+      },
+    });
+  } });
   clear.classList.add('btn-sm');
   const { segSetting, rangeSetting, switchSetting, sec } = settings;
   const gear = settings.panel({

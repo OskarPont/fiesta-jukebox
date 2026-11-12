@@ -66,6 +66,7 @@ export class Party {
     this.now = now;
     this.dirty = onDirty;
     this.lastRemoved = null;      // { item, at } de la última baja del anfitrión (solo memoria)
+    this.lastCleared = null;      // { items, at } del último «Vaciar cola» (solo memoria)
     this.connected = new Map();   // guestId -> nº conexiones SSE
     this.known = new Map();       // trackId -> {meta, at}
     this.pinFails = [];
@@ -418,8 +419,22 @@ export class Party {
     this.dirty();
   }
   clearQueue() {
+    // se guardan las vaciadas 30 s para poder deshacer (#39); la ya enviada a Spotify no se vacía
+    const gone = this.s.queue.filter((q) => !q.fed);
+    this.lastCleared = gone.length ? { items: gone, at: this.now() } : null;
     this.s.queue = this.s.queue.filter((q) => q.fed);
     this.dirty();
+    return gone.length;
+  }
+  /** Deshace «Vaciar cola»: vuelven los mismos objetos (votos, addedAt, manual) y por tanto su puesto. */
+  restoreCleared() {
+    const lc = this.lastCleared;
+    if (!lc || this.now() - lc.at > RESTORE_TTL_MS) throw new PartyError(409, 'cant_restore', 'Ya no se puede deshacer.');
+    let n = 0;
+    for (const it of lc.items) if (!this.findItem(it.qid)) { this.s.queue.push(it); n++; }
+    this.lastCleared = null;
+    this.dirty();
+    return n;
   }
 
   // ---------- likes a la que suena ----------
