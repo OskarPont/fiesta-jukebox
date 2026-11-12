@@ -350,7 +350,7 @@ async function main() {
       }
       expect(!(await seenToasts(g[1])).some((t) => t.includes(D.name) || t.startsWith('Añadida')), 'otro invitado no ve el aviso de una canción ajena');
       // el panel agrupa avisos seguidos («X y N más añadieron canciones»): ve el nombre o el aviso agrupado
-      expect((await seenToasts(admin)).some((t) => t.includes(D.name) || /añadi(ó|eron)/.test(t)), 'el panel sigue viendo los avisos de canciones añadidas');
+      await waitFor(async () => (await seenToasts(admin)).some((t) => t.includes(D.name) || /añadi(ó|eron)/.test(t)), { timeout: 5000, msg: 'el panel sigue viendo los avisos de canciones añadidas: ' + (await seenToasts(admin)).join(' | ') });
       // abajo y sin tapar el buscador
       const pos = await g[0].evaluate(() => { const h = document.getElementById('toasts').getBoundingClientRect(); return { bottom: h.bottom, vh: innerHeight }; });
       expect(pos.bottom > pos.vh * 0.85, 'avisos abajo: ' + JSON.stringify(pos));
