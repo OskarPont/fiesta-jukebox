@@ -367,7 +367,18 @@ cards.settings = (() => {
     const row = el('div', { class: 'set inline' }, el('div', {}, el('div', { class: 'lab', text: label }), desc ? el('div', { class: 'desc', text: desc }) : null), el('label', { class: 'switch' }, i, el('i')));
     rows[key] = row; return row;
   }
-  // «Ahora: N votos de M invitados activos». Con lo que dice el servidor; si acabas de
+  // Frase coherente en todos los casos: sin activos, todos los activos, uno solo,
+  // número fijo mayor que los activos, o lo normal «N votos de M invitados activos».
+  function skipLiveText(needed, active, mode, fixed) {
+    if (active === 0) return 'Ahora no hay invitados activos: con 1 voto se saltaría.';
+    if (active === 1) return 'Ahora: basta con el voto del único invitado activo.';
+    if (needed >= active) {
+      const why = mode === 'fixed' && fixed > active ? ` (pides ${fixed}, pero solo hay ${active})` : '';
+      return `Ahora: tienen que votar los ${active} invitados activos${why}.`;
+    }
+    return `Ahora: ${needed} ${needed === 1 ? 'voto' : 'votos'} de ${active} invitados activos.`;
+  }
+  // Con lo que dice el servidor; si acabas de
   // tocar algo y aún no ha contestado, una vista previa con la misma fórmula.
   const skipLive = el('p', { class: 'hint', id: 'skipLive', 'aria-live': 'polite' });
   let srv = null; // { needed, active } del último estado
@@ -379,7 +390,7 @@ cards.settings = (() => {
     if (Object.keys(pending).some((k) => k.startsWith('skipVote')) || vals.skipVoteMode !== srv.mode || vals.skipVotePct !== srv.pct || vals.skipVoteFixed !== srv.fixed) {
       needed = vals.skipVoteMode === 'fixed' ? Math.max(1, Math.min(vals.skipVoteFixed, active)) : Math.max(1, Math.ceil((active * vals.skipVotePct) / 100));
     }
-    skipLive.textContent = `Ahora: ${needed} ${needed === 1 ? 'voto' : 'votos'} de ${active} ${active === 1 ? 'invitado activo' : 'invitados activos'}`;
+    skipLive.textContent = skipLiveText(needed, active, vals.skipVoteMode, vals.skipVoteFixed);
   }
   // Solo se ven los ajustes que aplican con lo elegido arriba.
   function refreshVisibility() {
