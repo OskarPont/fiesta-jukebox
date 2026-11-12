@@ -1488,7 +1488,7 @@ async function main() {
       await card.waitFor({ state: 'visible' });
       const need = (await api(adminCtx, 'GET', 'admin/status')).body.skipNeeded;
       const t = await text();
-      expect(t.includes(`hacen falta ${need} ${need === 1 ? 'voto' : 'votos'}`), 'N de votos: ' + need + ' · ' + t);
+      expect(t.includes(`${need === 1 ? 'hace' : 'hacen'} falta ${need} ${need === 1 ? 'voto' : 'votos'}`), 'N de votos: ' + need + ' · ' + t);
       expect(t.includes('3 canciones'), 'cupo: ' + t);
       expect(t.includes('↑ Vota una canción') && t.includes('pausar'), 'votar y pausa: ' + t);
       expect(await btn.getAttribute('aria-expanded') === 'true', 'aria-expanded abierto');

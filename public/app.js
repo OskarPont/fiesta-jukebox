@@ -368,7 +368,7 @@ function renderHelp(st) {
   lines.push(s.ordering === 'fifo' ? 'La cola va por orden de llegada' : '↑ Vota una canción para que suene antes');
   if (s.skipMode === 'vote') {
     const n = st.skipNeeded;
-    lines.push(n ? `Saltar: hacen falta ${plural(n, 'voto', 'votos')}` : 'Saltar: hacen falta votos de la gente');
+    lines.push(n ? `Saltar: ${n === 1 ? 'hace' : 'hacen'} falta ${plural(n, 'voto', 'votos')}` : 'Saltar: hacen falta votos de la gente');
   } else if (s.skipMode === 'direct') lines.push('Cualquiera puede saltar la canción');
   if (s.maxQueuedPerGuest) lines.push(`Puedes tener ${plural(s.maxQueuedPerGuest, 'canción', 'canciones')} a la vez en la cola`);
   if (s.pauseMode === 'direct') lines.push('Cualquiera puede pausar la música');
