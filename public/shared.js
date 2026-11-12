@@ -45,6 +45,13 @@ function append(n, children) {
   }
 }
 export function setText(n, t) { if (n.textContent !== t) n.textContent = t; }
+/** «artistas · de X» en una línea: se recortan los artistas y el sufijo se ve siempre entero (#42). */
+export function setArtBy(n, art, by) {
+  n.classList.add('art-by');
+  let a = n.querySelector(':scope > .art'); let b = n.querySelector(':scope > .by');
+  if (!a || !b) { n.textContent = ''; a = el('span', { class: 'art' }); b = el('span', { class: 'by' }); n.append(a, b); }
+  setText(a, art); setText(b, by);
+}
 export function setSrc(img, src) { if (src && img.getAttribute('src') !== src) img.setAttribute('src', src); if (!src) img.removeAttribute('src'); }
 
 const ICONS = {

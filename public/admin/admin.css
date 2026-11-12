@@ -232,3 +232,6 @@ body.admin .toast.out { animation-name: toast-down; }
 }
 .acard > header .sub, .acard > header .btn, .set .lab output { white-space: nowrap; }
 .acard > header h2 { flex: none; }
+
+/* historial: el mismo chevron abre y cierra (gira al abrir) */
+.ico.chev.open { transform: rotate(180deg); }
