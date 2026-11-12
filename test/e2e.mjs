@@ -767,6 +767,9 @@ async function main() {
     await shot(g[0], '17-guest-admin-only');
   });
   await step('el anfitrion pausa y reanuda desde el panel', async () => {
+    // el paso anterior puede dejar el reproductor entre canciones: primero, que esté sonando y el panel lo sepa
+    await waitFor(async () => (await mockState()).mock.playing === true, { timeout: 10000, msg: 'el mock no suena antes de pausar' });
+    await waitFor(async () => (await admin.locator('#card-player button', { hasText: 'Pausa' }).count()) > 0, { msg: 'el panel no muestra «Pausa»' });
     await admin.locator('#card-player button', { hasText: 'Pausa' }).click();
     await waitFor(async () => (await mockState()).mock.playing === false, { msg: 'mock no pausa' });
     await waitFor(async () => g[1].locator('#pausedBadge').isVisible());
@@ -880,6 +883,18 @@ async function main() {
     await waitFor(async () => (await admin.locator('#srLive').textContent()).includes('¿Vaciar toda?'), { msg: 'confirmación no anunciada' });
     await waitFor(async () => (await clear.textContent()).includes('Vaciar cola'), { timeout: 5000, msg: 'el botón no se desarma' });
     expect((await names()).length === before.names.length, 'no se vació la cola');
+  });
+  await step('admin: «Vaciar cola» se puede deshacer y todo vuelve en su orden (#39)', async () => {
+    const before = clean(await queueTitles(g[1]));
+    expect(before.length >= 2, 'hace falta cola para probar el vaciado: ' + before.join('|'));
+    const btn = admin.locator('#card-queue button', { hasText: /Vaciar cola|¿Vaciar toda\?/ });
+    await btn.click(); await btn.click();
+    const undo = admin.locator('#toasts .toast', { hasText: 'Cola vaciada' }).last();
+    await undo.waitFor({ timeout: 5000 });
+    expect((await undo.textContent()).includes(`${before.length} canciones`) || (await undo.textContent()).includes('1 canción'), 'el aviso cuenta las vaciadas: ' + await undo.textContent());
+    await waitFor(async () => clean(await queueTitles(g[1])).length < before.length, { msg: 'la cola no se vacía' });
+    await undo.locator('button', { hasText: 'Deshacer' }).click();
+    await waitFor(async () => JSON.stringify(clean(await queueTitles(g[1]))) === JSON.stringify(before), { msg: 'deshacer no devuelve la cola en su orden: ' + clean(await queueTitles(g[1])).join('|') });
   });
   await step('admin: captura del panel completo (escritorio y movil)', async () => {
     await sleep(400);
