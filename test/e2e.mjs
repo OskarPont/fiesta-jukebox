@@ -181,7 +181,8 @@ async function main() {
     await admin.waitForSelector('#card-party .pin-big');
     pin = (await admin.textContent('#card-party .pin-big')).trim();
     expect(/^\d{4}$/.test(pin), 'pin de 4 digitos: ' + pin);
-    await admin.waitForFunction(() => document.querySelector('#card-party .qr-mini img')?.naturalWidth > 0);
+    // waitForFunction evalua con new Function y choca con la CSP del panel (fallo intermitente): se sondea con evaluate
+    await waitFor(async () => admin.evaluate(() => (document.querySelector('#card-party .qr-mini img')?.naturalWidth || 0) > 0), { msg: 'el QR del panel no carga' });
   });
   await step('admin: cambiar un ajuste desde la UI (orden FIFO) y volver a votos', async () => {
     await openGear(admin, '#card-queue');
@@ -538,7 +539,7 @@ async function main() {
     expect(await tv.evaluate(() => document.getElementById('sumSongImg').hidden && document.getElementById('sumNowImg').hidden), 'imágenes del resumen ocultas por defecto');
     await waitFor(async () => (await tv.textContent('#npTitle')).includes(X.name));
     await waitFor(async () => (await tv.locator('#next .n-item').count()) >= 3);
-    await tv.waitForFunction(() => document.querySelector('#qr')?.naturalWidth > 0);
+    await waitFor(async () => tv.evaluate(() => (document.querySelector('#qr')?.naturalWidth || 0) > 0), { msg: 'el QR de la pantalla no carga' });
     expect((await tv.textContent('#qrPin')).trim() === pin, 'PIN visible');
     await sleep(900);
     await shot(tv, '30-pantalla-tv');
