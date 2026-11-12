@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { summarize, scoreOf } from './library.js';
+import { summarize } from './library.js';
 
 export function securityHeaders() {
   return {
@@ -77,10 +77,9 @@ export function buildCommon(ctx) {
   };
 }
 
-/** Datos solo para el anfitrion: resumen, historial con likes, fiestas pasadas y clasicos. */
+/** Datos solo para el anfitrion: resumen, historial con likes y fiestas pasadas. */
 function adminExtras({ store, party, library }) {
   const s = store.state;
-  const st = s.settings;
   let summary = null;
   if (s.party?.active) {
     const joined = Math.max(s.party.joined || 0, Object.values(s.guests).filter((g) => g.partyId === s.party.id).length);
@@ -90,21 +89,11 @@ function adminExtras({ store, party, library }) {
     summary = { ...summarize(p.history, p), live: false, partyId: p.id };
   }
   const hist = s.party?.active ? party.partyHistory() : [];
-  const classics = library ? library.classics({ minScore: st.classicsMinScore, limit: 100 }) : [];
-  const excluded = library ? Object.values(library.data.tracks).filter((t) => t.excluded).length : 0;
   return {
     summary,
     showSummary: !!s.showSummary,
     history: hist.slice(-500).reverse().map(adminHist),
     parties: library ? library.listParties() : [],
-    classics: {
-      count: classics.length, excluded, tracksKnown: library ? Object.keys(library.data.tracks).length : 0,
-      playlist: library?.data.classics || null,
-      top: classics.slice(0, 30).map((t) => ({
-        trackId: t.trackId, name: t.name, artists: t.artists, image: t.image,
-        plays: t.plays, queueLikes: t.queueLikes, playLikes: t.playLikes, score: scoreOf(t),
-      })),
-    },
   };
 }
 

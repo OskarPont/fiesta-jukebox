@@ -210,7 +210,6 @@ function renderNow(st) {
     const by = $('npBy'); by.hidden = false;
     if (own) { by.className = 'chip accent'; setText(by, 'La has pedido tú'); }
     else if (np.fromQueue) { by.className = 'chip accent'; setText(by, `Pedida por ${np.fromQueue.addedBy.name}`); }
-    else if (np.filler === 'classic') { by.className = 'chip'; setText(by, 'Clásico de otras fiestas'); }
     else { by.className = 'chip'; setText(by, 'Relleno: playlist del anfitrión'); }
     setText($('tTotal'), fmtTime(np.durationMs));
   } else {

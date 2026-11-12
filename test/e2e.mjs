@@ -183,25 +183,23 @@ async function main() {
   await step('admin: ajustes agrupados, condicionales y accesibles', async () => {
     const st = async () => (await api(adminCtx, 'GET', 'admin/status')).body.settings;
     const orig = await st();
-    const keys = ['skipMode', 'pauseMode', 'fillerMode', 'maxQueuedPerGuest', 'skipVoteMode', 'skipVotePct', 'skipVoteFixed'];
+    const keys = ['skipMode', 'pauseMode', 'maxQueuedPerGuest', 'skipVoteMode', 'skipVotePct', 'skipVoteFixed'];
     try {
       const groups = admin.locator('#card-settings details');
-      expect(await groups.count() === 3, 'tres grupos de ajustes');
+      expect(await groups.count() === 2, 'dos grupos de ajustes');
       const want = [
         ['Cola', ['maxQueuedPerGuest', 'addCooldownSec', 'maxDurationMin', 'noRepeatMin'], ['Cola abierta', 'Orden de la cola', 'Permitir canciones explícitas']],
         ['Controles de los invitados', ['skipVotePct', 'skipVoteFixed', 'controlCooldownSec', 'globalControlCooldownSec'], ['Pausar y reanudar', 'Saltar canción']],
-        ['Relleno y clásicos', ['classicsMinScore'], ['Cuando la cola se vacía', 'Actualizar "Clásicos de fiesta"']],
       ];
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 2; i++) {
         const g = groups.nth(i);
         expect((await g.locator('> summary').textContent()).trim() === want[i][0], 'título del grupo ' + i);
         for (const k of want[i][1]) expect(await g.locator(`input#set-${k}`).count() === 1, `${k} está en «${want[i][0]}»`);
         for (const l of want[i][2]) expect(await g.locator('.set', { hasText: l }).count() >= 1, `«${l}» está en «${want[i][0]}»`);
       }
       expect(await groups.nth(0).evaluate((d) => d.open), 'el primer grupo empieza abierto');
-      expect(!(await groups.nth(1).evaluate((d) => d.open)) && !(await groups.nth(2).evaluate((d) => d.open)), 'los otros empiezan cerrados');
+      expect(!(await groups.nth(1).evaluate((d) => d.open)), 'el otro empieza cerrado');
       await groups.nth(1).locator('> summary').click();
-      await groups.nth(2).locator('> summary').click();
       const row = (k) => admin.locator(`#card-settings .set:has(#set-${k})`);
       const seg = (label, btn) => admin.locator('#card-settings .set', { hasText: label }).locator('button', { hasText: btn });
       // votos para saltar solo con «Por votos»
@@ -258,11 +256,6 @@ async function main() {
       expect(!(await row('controlCooldownSec').isVisible()) && !(await row('globalControlCooldownSec').isVisible()), 'solo yo: no se ven las esperas');
       await seg('Saltar canción', 'Directo').click();
       expect(await row('controlCooldownSec').isVisible() && await row('globalControlCooldownSec').isVisible(), 'directo: se ven las esperas');
-      // puntos de clásico solo con clásicos
-      await seg('Cuando la cola se vacía', 'Mi playlist de Spotify').click();
-      expect(!(await row('classicsMinScore').isVisible()), 'playlist: no se ven los puntos');
-      await seg('Cuando la cola se vacía', 'Clásicos de mis fiestas').click();
-      expect(await row('classicsMinScore').isVisible(), 'clásicos: se ven los puntos');
       // salidas accesibles
       const bad = await admin.evaluate(() => [...document.querySelectorAll('#card-settings output')].filter((o) => { const r = document.getElementById(o.getAttribute('for') || ''); return !r || r.type !== 'range'; }).length);
       expect(bad === 0, 'cada output apunta a su range');
@@ -277,7 +270,6 @@ async function main() {
       expect((await st()).maxQueuedPerGuest === next, 'el range se guarda');
       expect(await admin.locator('#set-maxQueuedPerGuest').getAttribute('aria-valuetext') === String(next), 'aria-valuetext al día');
       await groups.nth(1).locator('> summary').click();
-      await groups.nth(2).locator('> summary').click();
       await admin.locator('#card-settings').screenshot({ path: path.join(SHOTS, '62-admin-ajustes.png') });
     } finally {
       await api(adminCtx, 'PUT', 'admin/settings', Object.fromEntries(keys.map((k) => [k, orig[k]])));
@@ -882,7 +874,7 @@ async function main() {
       expect(m['card-player'].top < m['card-queue'].top && m['card-queue'].top < m['card-party'].top, 'móvil: reproducción, cola y luego fiesta: ' + JSON.stringify(m));
       expect(m['card-queue'].top <= 844 * 1.5, 'móvil: la cola empieza dentro de 1,5 pantallas: ' + m['card-queue'].top);
       // el orden de lectura (DOM, y por tanto el foco) es exactamente el del modo fiesta, y coincide con el visual
-      const want = ['player', 'queue', 'party', 'guests', 'history', 'classics', 'settings', 'device', 'spotify'];
+      const want = ['player', 'queue', 'party', 'guests', 'history', 'settings', 'device', 'spotify'];
       const dom = await domOrder();
       expect(dom.join() === want.join(), 'móvil: orden del DOM: ' + dom.join());
       const visual = Object.entries(m).sort((a, b) => a[1].top - b[1].top).map(([id]) => id.replace('card-', ''));
@@ -928,7 +920,7 @@ async function main() {
       const colOf = (r) => (r.x === Math.min(...xs) ? 'a' : 'b');
       const cols = { a: [], b: [] };
       for (const [id, r] of Object.entries(d0).sort((a, b) => a[1].top - b[1].top)) cols[colOf(r)].push(id.replace('card-', ''));
-      expect(cols.a.join() === 'player,queue,guests' && cols.b.join() === 'party,history,classics,settings,device,spotify', 'escritorio: reparto por columnas: ' + JSON.stringify(cols));
+      expect(cols.a.join() === 'player,queue,guests' && cols.b.join() === 'party,history,settings,device,spotify', 'escritorio: reparto por columnas: ' + JSON.stringify(cols));
       // el DOM baja por la primera columna y luego por la segunda
       expect((await domOrder()).join() === [...cols.a, ...cols.b].join(), 'escritorio: el DOM sigue las columnas');
       // la cola crece y ninguna tarjeta cambia de columna

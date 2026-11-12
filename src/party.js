@@ -30,9 +30,6 @@ const SETTING_RULES = {
   maxDurationMin: { type: 'int', min: 1, max: 60 },
   noRepeatMin: { type: 'int', min: 0, max: 1440 },
   allowAdd: { type: 'bool' },
-  fillerMode: { type: 'enum', values: ['classics', 'host'] },
-  classicsMinScore: { type: 'int', min: 1, max: 50 },
-  classicsAutoUpdate: { type: 'bool' },
 };
 
 export function validateSettings(partial) {

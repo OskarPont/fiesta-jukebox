@@ -263,24 +263,6 @@ export class Spotify {
     return (r?.tracks?.items || []).map(normTrack).filter(Boolean);
   }
 
-  /** Sustituye el contenido de una playlist. Devuelve false si la playlist ya no existe. */
-  async replacePlaylist(id, uris) {
-    const first = uris.slice(0, 100);
-    let path = 'items';
-    try {
-      await this.call('PUT', `/playlists/${encodeURIComponent(id)}/items`, { body: { uris: first } });
-    } catch (e) {
-      if (e.status !== 404 && e.status !== 405) throw e;
-      path = 'tracks';
-      try { await this.call('PUT', `/playlists/${encodeURIComponent(id)}/tracks`, { body: { uris: first } }); }
-      catch (e2) { if (e2.status === 404 || e2.status === 403) return false; throw e2; }
-    }
-    for (let i = 100; i < uris.length; i += 100) {
-      await this.call('POST', `/playlists/${encodeURIComponent(id)}/${path}`, { body: { uris: uris.slice(i, i + 100) } });
-    }
-    return true;
-  }
-
   /** Crea playlist privada con los uris dados. Devuelve {id, url, added}. */
   async createPlaylist(name, uris, description = 'Creada por fiesta.') {
     const body = { name, public: false, description };

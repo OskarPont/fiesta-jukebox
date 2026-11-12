@@ -64,7 +64,6 @@ function render(st) {
     setBg(np.image || null);
     const by = $('npBy'); by.hidden = false;
     if (np.fromQueue) { by.className = 'chip big accent'; setText(by, `Pedida por ${np.fromQueue.addedBy.name}`); }
-    else if (np.filler === 'classic') { by.className = 'chip big'; setText(by, 'Clásico de otras fiestas'); }
     else { by.className = 'chip big'; setText(by, 'Relleno: playlist del anfitrión'); }
     const lk = $('npLikes'); lk.hidden = !np.likes;
     if (lk.dataset.k !== String(np.likes)) { lk.dataset.k = String(np.likes); lk.replaceChildren(icon('heart'), String(np.likes || 0)); }

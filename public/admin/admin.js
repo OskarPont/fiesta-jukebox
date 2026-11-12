@@ -290,7 +290,7 @@ cards.player = (() => {
         setText(t, np.name); setText(sline, artistsText(np.artists));
         if (np.image) { setSrc(img, np.image); img.hidden = false; ph.hidden = true; } else { img.hidden = true; ph.hidden = false; }
         applyTint(np.image || null);
-        setText(by, np.fromQueue ? `Pedida por ${np.fromQueue.addedBy.name}` : np.filler === 'classic' ? 'Relleno: clásico de otras fiestas' : 'Relleno: playlist del anfitrión');
+        setText(by, np.fromQueue ? `Pedida por ${np.fromQueue.addedBy.name}` : 'Relleno: playlist del anfitrión');
         likes.replaceChildren(...[likesLine({ queueLikes: np.queueLikes || 0, playLikes: np.playLikes || 0 })].filter(Boolean));
         const lbl = playBtn.querySelector('span'); setText(lbl, np.isPlaying ? 'Pausa' : 'Seguir');
         playBtn.replaceChildren(icon(np.isPlaying ? 'pause' : 'play', 'sm'), lbl);
@@ -401,7 +401,6 @@ cards.settings = (() => {
     if (rows.skipVoteFixed) rows.skipVoteFixed.hidden = !vote || vals.skipVoteMode !== 'fixed';
     renderSkipLive();
     for (const k of ['controlCooldownSec', 'globalControlCooldownSec']) if (rows[k]) rows[k].hidden = !direct;
-    if (rows.classicsMinScore) rows.classicsMinScore.hidden = vals.fillerMode !== 'classics';
   }
   function group(id, title, open, ...kids) {
     let isOpen = open;
@@ -431,11 +430,7 @@ cards.settings = (() => {
       rangeSetting('skipVoteFixed', 'Votos que hacen falta', null, 1, 20, 1, (v) => `${v} ${v === 1 ? 'voto' : 'votos'}`),
       skipLive,
       rangeSetting('controlCooldownSec', 'Espera para pausar o saltar', 'Por invitado, en modo directo.', 0, 600, 5, sec),
-      rangeSetting('globalControlCooldownSec', 'Espera global para pausar o saltar', 'Evita guerras de pausa entre invitados.', 0, 300, 1, sec)),
-    group('relleno', 'Relleno y clásicos', false,
-      segSetting('fillerMode', 'Cuando la cola se vacía', 'Qué suena si nadie ha pedido nada.', [['classics', 'Clásicos de mis fiestas'], ['host', 'Mi playlist de Spotify']]),
-      rangeSetting('classicsMinScore', 'Puntos para ser clásico', '1 punto por like, 0,5 por voto (sumando todas las fiestas).', 1, 20, 1, (v) => `${v} pts`),
-      switchSetting('classicsAutoUpdate', 'Actualizar "Clásicos de fiesta" al terminar', 'La playlist de Spotify se rehace sola al terminar cada fiesta.')));
+      rangeSetting('globalControlCooldownSec', 'Espera global para pausar o saltar', 'Evita guerras de pausa entre invitados.', 0, 300, 1, sec)));
   return {
     root: c.root,
     update(s) {
@@ -714,7 +709,8 @@ function likesLine(h) {
 }
 function originText(h) {
   if (h.addedBy) return `de ${h.addedBy}`;
-  return h.filler === 'classic' ? 'clásico (relleno)' : 'relleno';
+  // los registros antiguos con filler 'classic' (clasicos, ya retirados) tambien salen como relleno
+  return 'relleno';
 }
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 function fmtDay(ts) { return ts ? new Date(ts).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : ''; }
@@ -871,80 +867,27 @@ cards.history = (() => {
   return { root: c.root, update(s) { refresh(); if (builder.open && s.party.active && sel === 'current') schedulePreview(); } };
 })();
 
-// ---------- Clasicos de fiesta ----------
-cards.classics = (() => {
-  const c = card('Clásicos de fiesta', 'card-classics');
-  const intro = el('p', { class: 'hint' });
-  const plInfo = el('div', { class: 'hint' });
-  const updBtn = button('Actualizar playlist ahora', { cls: 'btn-primary', ico: 'music', onclick: async () => {
-    const r = await api('admin/classics/update', { method: 'POST' });
-    toast(`Clásicos actualizados (${r.count} canciones)`, 'ok');
-  } });
-  const list = el('ul', { class: 'ah' });
-  const empty = el('p', { class: 'empty-note', text: 'Todavía no hay clásicos. Saldrán solos cuando la gente dé likes y votos en tus fiestas.' });
-  const restore = el('div', { class: 'row' });
-  c.body.append(intro, el('div', { class: 'row' }, updBtn), plInfo, list, empty, restore);
-  function create() {
-    return el('li', { class: 'ah-item' }, el('img', { alt: '' }),
-      el('div', { class: 'ah-main' }, el('div', { class: 't ellipsis' }), el('div', { class: 's ellipsis' }), el('div', { class: 'lkw' })),
-      el('span', { class: 'score' }), el('div', { class: 'xb' }));
-  }
-  function upd(li, t) {
-    setSrc(li.querySelector('img'), t.image);
-    setText(li.querySelector('.t'), t.name);
-    setText(li.querySelector('.s'), `${artistsText(t.artists)} · sonó ${t.plays} ${t.plays === 1 ? 'vez' : 'veces'}`);
-    li.querySelector('.lkw').replaceChildren(...[likesLine(t)].filter(Boolean));
-    setText(li.querySelector('.score'), `${String(t.score).replace('.', ',')} pts`);
-    const xb = li.querySelector('.xb');
-    if (!xb.firstChild) {
-      const b = el('button', { class: 'icon-btn', type: 'button', title: 'Quitar de clásicos', 'aria-label': 'Quitar de clásicos' }, icon('x', 'sm'));
-      b.addEventListener('click', run(b, async () => { await api(`admin/classics/${encodeURIComponent(li.dataset.key)}/exclude`, { method: 'POST', body: { excluded: true } }); toast('Quitada de clásicos', 'ok', 1800); }));
-      xb.append(b);
-    }
-  }
-  return {
-    root: c.root,
-    update(s) {
-      const k = s.admin.classics; const set = s.settings;
-      setText(intro, `Las canciones que más gustan en todas tus fiestas. Puntos: 1 por cada like y 0,5 por cada voto. Entran las que tienen ${set.classicsMinScore} puntos o más (se cambia en Ajustes).${set.classicsAutoUpdate ? ' La playlist se actualiza sola al terminar cada fiesta.' : ''}${set.fillerMode === 'classics' ? ' Cuando la cola se vacía, suenan estas canciones.' : ''}`);
-      const p = k.playlist;
-      plInfo.replaceChildren();
-      if (p?.url) plInfo.append(el('a', { href: p.url, target: '_blank', rel: 'noopener', text: 'Abrir "Clásicos de fiesta" en Spotify' }), p.updatedAt ? ` · actualizada ${fmtAgo(p.updatedAt)} con ${plural(p.count, 'canción', 'canciones')}` : '');
-      else plInfo.append('Todavía no se ha creado la playlist en Spotify.');
-      updBtn.disabled = !k.count;
-      reconcile(list, k.top, (t) => t.trackId, create, upd);
-      empty.hidden = k.top.length > 0; list.hidden = k.top.length === 0;
-      c.sub.textContent = k.count ? plural(k.count, 'canción', 'canciones') : '';
-      restore.replaceChildren();
-      if (k.excluded) {
-        restore.append(el('span', { class: 'hint', text: `${plural(k.excluded, 'quitada', 'quitadas')} a mano.` }),
-          button('Restaurarlas', { cls: 'btn-sm btn-ghost', onclick: async () => { await api('admin/classics/restore', { method: 'POST' }); toast('Restauradas', 'ok', 1800); } }));
-      }
-    },
-  };
-})();
-
 // ---------- orden de tarjetas ----------
 // Cada disposicion tiene un orden de lectura (movil, una columna) y un reparto fijo en dos columnas
 // (escritorio). Las columnas son contenedores reales: una tarjeta que crece no hace saltar a las demas.
 const LAYOUTS = {
   // fiesta en marcha: lo que se toca cada pocos minutos, arriba
   fiesta: {
-    order: ['player', 'queue', 'party', 'guests', 'history', 'classics', 'settings', 'device', 'spotify'],
+    order: ['player', 'queue', 'party', 'guests', 'history', 'settings', 'device', 'spotify'],
     a: ['player', 'queue', 'guests'],
-    b: ['party', 'history', 'classics', 'settings', 'device', 'spotify'],
+    b: ['party', 'history', 'settings', 'device', 'spotify'],
   },
   // Spotify listo y sin fiesta: lo primero es empezarla
   ready: {
-    order: ['party', 'player', 'queue', 'guests', 'history', 'classics', 'settings', 'device', 'spotify'],
+    order: ['party', 'player', 'queue', 'guests', 'history', 'settings', 'device', 'spotify'],
     a: ['party', 'player', 'queue', 'guests'],
-    b: ['history', 'classics', 'settings', 'device', 'spotify'],
+    b: ['history', 'settings', 'device', 'spotify'],
   },
   // puesta en marcha: conectar Spotify, elegir dispositivo, empezar
   setup: {
-    order: ['spotify', 'device', 'party', 'player', 'queue', 'guests', 'settings', 'history', 'classics'],
+    order: ['spotify', 'device', 'party', 'player', 'queue', 'guests', 'settings', 'history'],
     a: ['spotify', 'device', 'party'],
-    b: ['player', 'queue', 'guests', 'settings', 'history', 'classics'],
+    b: ['player', 'queue', 'guests', 'settings', 'history'],
   },
 };
 const cardsHost = $('cards');
@@ -1067,5 +1010,5 @@ async function start() {
 }
 
 // ticks para "hace X min"
-setInterval(() => { if (st && !dragging && !document.hidden) { cards.history.update(st); cards.classics.update(st); } }, 30000);
+setInterval(() => { if (st && !dragging && !document.hidden) { cards.history.update(st); } }, 30000);
 start();

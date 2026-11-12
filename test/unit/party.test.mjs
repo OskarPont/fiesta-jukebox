@@ -179,6 +179,27 @@ test('migracion de ajustes de votos de salto', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('migracion de ajustes: se retiran los de clasicos (#36)', () => {
+  const st = { fillerMode: 'classics', classicsMinScore: 3, classicsAutoUpdate: false, ordering: 'fifo' };
+  assert.equal(migrateSettings(st), true);
+  assert.deepEqual(st, { ordering: 'fifo' });
+  assert.equal(migrateSettings(st), false);
+  // convive con la migracion de votos
+  const both = { fillerMode: 'host', skipVotePct: 40, skipVoteMin: 2 };
+  assert.equal(migrateSettings(both), true);
+  assert.deepEqual(both, { skipVotePct: 40, skipVoteMode: 'pct' });
+  // al cargar state.json: se quitan, se persiste y no quedan en los ajustes
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fiesta-mig2-'));
+  fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ settings: { fillerMode: 'classics', classicsMinScore: 2, classicsAutoUpdate: true, ordering: 'fifo' } }));
+  const store = new Store(dir, { debounceMs: 5 }).load();
+  for (const k of ['fillerMode', 'classicsMinScore', 'classicsAutoUpdate']) assert.ok(!(k in store.state.settings), k);
+  assert.equal(store.state.settings.ordering, 'fifo');
+  store.flush();
+  const saved = JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')).settings;
+  for (const k of ['fillerMode', 'classicsMinScore', 'classicsAutoUpdate']) assert.ok(!(k in saved), 'persistido: ' + k);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('los invitados inactivos no cuentan para el umbral', () => {
   const { party, join, clock } = mk();
   join('A'); join('B'); join('C');

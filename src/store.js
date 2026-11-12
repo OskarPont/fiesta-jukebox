@@ -16,9 +16,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
   maxDurationMin: 10,
   noRepeatMin: 60,
   allowAdd: true,
-  fillerMode: 'classics',
-  classicsMinScore: 2,
-  classicsAutoUpdate: true,
 });
 
 /**
@@ -27,7 +24,13 @@ export const DEFAULT_SETTINGS = Object.freeze({
  * state.json, antes de que nadie lea los ajustes. Devuelve true si cambio algo.
  */
 export function migrateSettings(st) {
-  if (!st || st.skipVoteMin === undefined) return false;
+  if (!st) return false;
+  let changed = false;
+  // #36: se quitaron los clasicos y el relleno por clasicos
+  for (const k of ['fillerMode', 'classicsMinScore', 'classicsAutoUpdate']) {
+    if (k in st) { delete st[k]; changed = true; }
+  }
+  if (st.skipVoteMin === undefined) return changed;
   if (st.skipVoteMode === undefined) {
     const min = Number(st.skipVoteMin);
     if (min <= 2) {

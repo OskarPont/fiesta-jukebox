@@ -35,7 +35,7 @@ export async function createApp(cfg = config, { logger = false } = {}) {
   const ctx = { store, party, spotify, config: cfg, engine: null, library };
   const hub = new Hub({ ctx, hbMs: cfg.HB_MS });
   const engine = new Engine({
-    store, party, spotify, library,
+    store, party, spotify,
     onChange: (force) => hub.changed(force),
     toast: (t, k, by) => hub.toast(t, k, by),
     hasClients: () => hub.hasClients(),
@@ -120,29 +120,6 @@ export async function createApp(cfg = config, { logger = false } = {}) {
     library.archiveParty({ ...s.party, joined }, s.history);
     if (!s.party.active) s.party.archived = true;
     store.save();
-  }
-
-  /** Crea o actualiza la playlist "Clasicos de fiesta" en Spotify. */
-  let classicsBusy = null;
-  function updateClassics() {
-    if (classicsBusy) return classicsBusy;
-    classicsBusy = (async () => {
-      if (!spotify.connected) throw new PartyError(409, 'disconnected', 'Conecta Spotify primero.');
-      const list = library.classics({ minScore: s.settings.classicsMinScore, limit: 100 });
-      if (!list.length) throw new PartyError(409, 'empty', 'Todavía no hay clásicos: hacen falta canciones con likes en tus fiestas.');
-      const uris = list.map((t) => t.uri);
-      const cur = library.data.classics;
-      let ok = false;
-      if (cur.playlistId) ok = await spotify.replacePlaylist(cur.playlistId, uris);
-      if (ok) {
-        library.setClassicsPlaylist({ updatedAt: Date.now(), count: uris.length });
-      } else {
-        const r = await spotify.createPlaylist('Clásicos de fiesta', uris, 'Las canciones que más gustan en mis fiestas. Se actualiza sola con fiesta.');
-        library.setClassicsPlaylist({ playlistId: r.id, url: r.url, updatedAt: Date.now(), count: uris.length });
-      }
-      return { ...library.data.classics };
-    })().finally(() => { classicsBusy = null; });
-    return classicsBusy;
   }
 
   // ================= API =================
@@ -371,7 +348,6 @@ export async function createApp(cfg = config, { logger = false } = {}) {
         if (s.party) s.party.joined = Math.max(s.party.joined || 0, joinedNow);
         archiveCurrent();
         changed();
-        if (s.settings.classicsAutoUpdate) updateClassics().catch((e) => app.log.warn('clasicos: ' + e.message));
         if (kickAll) setTimeout(() => hub.drop(() => true), 800);
         return { ok: true };
       });
@@ -427,7 +403,7 @@ export async function createApp(cfg = config, { logger = false } = {}) {
         return { ok: true };
       });
 
-      // ----- historial, playlists, resumen y clasicos -----
+      // ----- historial, playlists y resumen -----
       function historyFor(partyId) {
         if (!partyId || partyId === 'current') {
           if (s.party?.active) return { party: s.party, history: party.partyHistory() };
@@ -490,22 +466,6 @@ export async function createApp(cfg = config, { logger = false } = {}) {
         s.showSummary = req.body?.on === true;
         store.save(); changed();
         return { ok: true, showSummary: s.showSummary };
-      });
-
-      adm.post('/classics/update', async () => {
-        const r = await updateClassics();
-        changed();
-        return r;
-      });
-      adm.post('/classics/:trackId/exclude', async (req) => {
-        if (!library.setExcluded(req.params.trackId, req.body?.excluded !== false)) fail(404, 'not_found', 'Esa canción no está en tus clásicos.');
-        changed();
-        return { ok: true };
-      });
-      adm.post('/classics/restore', async () => {
-        for (const t of Object.values(library.data.tracks)) t.excluded = false;
-        library.save(); changed();
-        return { ok: true };
       });
 
       adm.get('/qr.svg', async (req, reply) => {
