@@ -140,6 +140,9 @@ select.input { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 }
 .muted { color: var(--muted); }
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-by { display: flex; min-width: 0; white-space: nowrap; }
+.art-by > .art { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.art-by > .by { flex: none; white-space: pre; }
 
 /* ---------- toasts ---------- */
 #toasts {

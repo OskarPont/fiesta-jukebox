@@ -789,6 +789,25 @@ async function main() {
   });
 
   console.log('\nE. Admin: cola, invitados, historial');
+  await step('admin: en movil, «de X» no se corta aunque los artistas sean largos (#42)', async () => {
+    const vp = admin.viewportSize();
+    await admin.setViewportSize({ width: 390, height: 844 });
+    try {
+      await admin.locator('#card-queue .aq-item .s .art').first().waitFor();
+      const r = await admin.evaluate(() => {
+        const s = document.querySelector('#card-queue .aq-item .s');
+        const art = s.querySelector('.art'); const by = s.querySelector('.by');
+        art.textContent = 'Bad Bunny, Jhay Cortez, J Balvin, Rosalía, Ozuna, Anuel AA, Daddy Yankee, Karol G';
+        const sb = s.getBoundingClientRect(); const bb = by.getBoundingClientRect();
+        return { by: by.textContent, byFull: by.scrollWidth <= by.clientWidth + 1, byInside: bb.right <= sb.right + 1, artCut: art.scrollWidth > art.clientWidth };
+      });
+      expect(/^ · de \S/.test(r.by), 'el sufijo es « · de X»: ' + r.by);
+      expect(r.byFull && r.byInside, '«de X» se ve entero: ' + JSON.stringify(r));
+      expect(r.artCut, 'los artistas se recortan: ' + JSON.stringify(r));
+    } finally {
+      if (vp) await admin.setViewportSize(vp);
+    }
+  });
   await step('admin: ve cola con asas, sube a la primera y reordena arrastrando', async () => {
     await api(adminCtx, 'POST', 'admin/queue/clear');
     await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: 5 });

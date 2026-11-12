@@ -1,5 +1,5 @@
 import {
-  api, ApiError, el, icon, setIcon, setText, setSrc, fmtTime, fmtAgo, artistsText, syncClock,
+  api, ApiError, el, icon, setIcon, setText, setSrc, fmtTime, fmtAgo, artistsText, syncClock, setArtBy,
   toast, connectEvents, reconcile, copyText, BASE, applyTint,
 } from '../shared.js';
 
@@ -506,7 +506,7 @@ cards.queue = (() => {
     const li = el('li', { class: 'aq-item' },
       el('button', { class: 'grip', type: 'button', title: 'Arrastrar o usar flechas arriba y abajo' }, icon('grip')),
       el('img', { alt: '' }),
-      el('div', { class: 'aq-main' }, el('div', { class: 't ellipsis' }), el('div', { class: 's ellipsis' })),
+      el('div', { class: 'aq-main' }, el('div', { class: 't ellipsis' }), el('div', { class: 's' })),
       el('div', { class: 'aq-btns' },
         el('span', { class: 'votes-tag' }),
         el('button', { class: 'icon-btn top', type: 'button', title: 'Subir arriba', 'aria-label': 'Poner la primera' }, icon('up')),
@@ -557,7 +557,7 @@ cards.queue = (() => {
     li.classList.toggle('fed', q.fed);
     setSrc(li.querySelector('img'), q.thumb || q.image);
     setText(li.querySelector('.t'), q.name);
-    setText(li.querySelector('.s'), `${artistsText(q.artists)} · de ${q.addedBy.name}`);
+    setArtBy(li.querySelector('.s'), artistsText(q.artists), ` · de ${q.addedBy.name}`);
     const vt = li.querySelector('.votes-tag');
     vt.replaceChildren(); if (q.votes) vt.append(icon('up', 'sm'), String(q.votes));
     const g = li.querySelector('.grip');
@@ -869,7 +869,9 @@ cards.history = (() => {
   function applyOpen() {
     hbody.hidden = !isOpen;
     toggle.setAttribute('aria-expanded', String(isOpen));
-    toggle.replaceChildren(icon(isOpen ? 'up' : 'down', 'sm'), el('span', { text: isOpen ? 'Cerrar' : 'Abrir' }));
+    // el mismo chevron en los dos estados: abierto, gira hacia arriba
+    const chev = icon('down', 'sm'); chev.classList.add('chev'); chev.classList.toggle('open', isOpen);
+    toggle.replaceChildren(chev, el('span', { text: isOpen ? 'Cerrar' : 'Abrir' }));
     toggle.setAttribute('aria-label', isOpen ? 'Cerrar el historial' : 'Abrir el historial');
   }
   toggle.addEventListener('click', () => {
@@ -881,13 +883,13 @@ cards.history = (() => {
 
   function create() {
     return el('li', { class: 'ah-item' }, el('img', { alt: '' }),
-      el('div', { class: 'ah-main' }, el('div', { class: 't ellipsis' }), el('div', { class: 's ellipsis' }), el('div', { class: 'lkw' })),
+      el('div', { class: 'ah-main' }, el('div', { class: 't ellipsis' }), el('div', { class: 's' }), el('div', { class: 'lkw' })),
       el('span', { class: 'ago' }));
   }
   function upd(li, h) {
     setSrc(li.querySelector('img'), h.image);
     setText(li.querySelector('.t'), h.name);
-    setText(li.querySelector('.s'), `${artistsText(h.artists)} · ${originText(h)}${h.skipped ? ' · saltada' : ''}`);
+    setArtBy(li.querySelector('.s'), artistsText(h.artists), ` · ${originText(h)}${h.skipped ? ' · saltada' : ''}`);
     li.querySelector('.lkw').replaceChildren(...[likesLine(h)].filter(Boolean));
     setText(li.querySelector('.ago'), sel === 'current' && st?.party.active ? fmtAgo(h.playedAt) : new Date(h.playedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
   }

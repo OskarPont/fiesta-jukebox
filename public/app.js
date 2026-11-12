@@ -1,5 +1,5 @@
 import {
-  api, ApiError, el, icon, setIcon, setText, setSrc, fmtTime, fmtAgo, artistsText, syncClock, serverTime, liveProgress,
+  api, ApiError, el, icon, setIcon, setText, setSrc, fmtTime, fmtAgo, artistsText, syncClock, serverTime, setArtBy, liveProgress,
   toast, connectEvents, reconcile, safeStorage, makeBackground,
 } from './shared.js';
 
@@ -418,7 +418,7 @@ function renderHistory(st) {
     el('img', { class: 'h-cover', alt: '', loading: 'lazy', src: h.image || null }),
     el('div', { class: 'q-main' },
       el('div', { class: 'q-title ellipsis', text: h.name }),
-      el('div', { class: 'q-sub ellipsis', text: artistsText(h.artists) + (h.addedBy ? ` · de ${h.addedBy}` : '') })),
+      (() => { const d = el('div', { class: 'q-sub' }); setArtBy(d, artistsText(h.artists), h.addedBy ? ` · de ${h.addedBy}` : ''); return d; })()),
     el('span', { class: 'muted small', style: { padding: 0 }, text: fmtAgo(h.playedAt) }))));
 }
 
