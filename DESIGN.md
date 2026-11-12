@@ -23,6 +23,11 @@ colors:
   warn: "#ffb340"
   warn-ink: "#ffd699"
   ok: "#35d07f"
+  white: "#ffffff"
+  black: "#000000"
+  veil-light: "rgba(255, 255, 255, 0.1)"
+  veil-line: "rgba(255, 255, 255, 0.09)"
+  veil-dark: "rgba(0, 0, 0, 0.7)"
 typography:
   display:
     fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Display, Segoe UI Variable Display, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
@@ -51,7 +56,24 @@ typography:
     fontSize: "13px"
     fontWeight: 600
     lineHeight: 1.3
+  lead:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI Variable Text, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: "17px"
+    fontWeight: 500
+    lineHeight: 1.4
+  body-sm:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI Variable Text, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: "15px"
+    fontWeight: 400
+    lineHeight: 1.45
+  small:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI Variable Text, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: "14px"
+    fontWeight: 500
+    lineHeight: 1.4
 rounded:
+  xs: "8px"
+  sm-plus: "14px"
   sm: "12px"
   md: "16px"
   lg: "22px"
