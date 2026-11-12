@@ -341,7 +341,45 @@ function renderQuota() {
 // ---------- cola ----------
 let queuePos = new Map(); // qid -> puesto (1 = la siguiente)
 
+// ---------- ayuda «Cómo funciona» ----------
+const HELP_KEY = 'fiesta.help.seen';
+let helpOpen = null;   // null = aun sin decidir en esta carga
+
+function setHelp(open) {
+  helpOpen = open;
+  $('helpCard').hidden = !open;
+  $('helpBtn').setAttribute('aria-expanded', String(open));
+}
+$('helpBtn').addEventListener('click', () => setHelp(!helpOpen));
+$('helpClose').addEventListener('click', () => {
+  try { store.set(HELP_KEY, '1'); } catch { /* sin almacenamiento */ }
+  setHelp(false);
+  $('helpBtn').focus();
+});
+
+function renderHelp(st) {
+  if (helpOpen === null) {
+    let seen = false;
+    try { seen = !!store.get(HELP_KEY); } catch { /* */ }
+    setHelp(!seen);
+  }
+  const s = st.settings || {};
+  const lines = [];
+  lines.push(s.ordering === 'fifo' ? 'La cola va por orden de llegada' : '↑ Vota una canción para que suene antes');
+  if (s.skipMode === 'vote') {
+    const n = st.skipNeeded;
+    lines.push(n ? `Saltar: hacen falta ${plural(n, 'voto', 'votos')}` : 'Saltar: hacen falta votos de la gente');
+  } else if (s.skipMode === 'direct') lines.push('Cualquiera puede saltar la canción');
+  if (s.maxQueuedPerGuest) lines.push(`Puedes tener ${plural(s.maxQueuedPerGuest, 'canción', 'canciones')} a la vez en la cola`);
+  if (s.pauseMode === 'direct') lines.push('Cualquiera puede pausar la música');
+  const ul = $('helpList');
+  const cur = [...ul.children].map((li) => li.textContent);
+  if (cur.length === lines.length && cur.every((t, i) => t === lines[i])) return;
+  ul.replaceChildren(...lines.map((t) => el('li', {}, t)));
+}
+
 function renderQueue(st) {
+  renderHelp(st);
   const list = $('queue');
   queuePos = new Map(st.queue.map((q, i) => [q.qid, i + 1]));
   reconcile(list, st.queue, (q) => q.qid, createQueueItem, updateQueueItem);
