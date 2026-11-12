@@ -1,0 +1,340 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-12T09:16:28.989Z",
+  "title": "Design System: fiesta.",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Blanco jukebox",
+        "canonical": "#f5f5f7",
+        "tonalRamp": [
+          "#242429",
+          "#393947",
+          "#525266",
+          "#6d6d88",
+          "#8e8ea4",
+          "#b0b0c0",
+          "#d2d2db",
+          "#f1f1f3"
+        ]
+      },
+      "accent-pink": {
+        "role": "secondary",
+        "displayName": "Rosa fiesta",
+        "canonical": "#ff4d85",
+        "tonalRamp": [
+          "#3d0f1e",
+          "#800028",
+          "#b8003a",
+          "#f5004d",
+          "#ff3373",
+          "#ff709d",
+          "#ffadc7",
+          "#faebef"
+        ]
+      },
+      "ok": {
+        "role": "tertiary",
+        "displayName": "Verde conectado",
+        "canonical": "#35d07f",
+        "tonalRamp": [
+          "#183526",
+          "#18673e",
+          "#239559",
+          "#2ec777",
+          "#5ad896",
+          "#8be4b6",
+          "#bdf0d5",
+          "#edf7f2"
+        ]
+      },
+      "warn": {
+        "role": "tertiary",
+        "displayName": "Ámbar aviso",
+        "canonical": "#ffb340",
+        "tonalRamp": [
+          "#3d2b0f",
+          "#804d00",
+          "#b86f00",
+          "#f59300",
+          "#ffae33",
+          "#ffc670",
+          "#ffdfad",
+          "#faf4eb"
+        ]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Rojo error",
+        "canonical": "#ff6b6b",
+        "tonalRamp": [
+          "#3d0f0f",
+          "#800000",
+          "#b80000",
+          "#f50000",
+          "#ff3333",
+          "#ff7070",
+          "#ffadad",
+          "#faebeb"
+        ]
+      },
+      "night": {
+        "role": "neutral",
+        "displayName": "Noche",
+        "canonical": "#101012",
+        "tonalRamp": [
+          "#252528",
+          "#3c3c44",
+          "#565661",
+          "#737382",
+          "#93939f",
+          "#b3b3bc",
+          "#d4d4d9",
+          "#f2f2f3"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Superficie",
+        "canonical": "#18181b",
+        "tonalRamp": [
+          "#252528",
+          "#3c3c44",
+          "#565661",
+          "#737382",
+          "#93939f",
+          "#b3b3bc",
+          "#d4d4d9",
+          "#f2f2f3"
+        ]
+      },
+      "surface-3": {
+        "role": "neutral",
+        "displayName": "Superficie 3",
+        "canonical": "#2a2a2f",
+        "tonalRamp": [
+          "#252528",
+          "#3c3c43",
+          "#575761",
+          "#747481",
+          "#93939f",
+          "#b4b4bc",
+          "#d4d4d8",
+          "#f2f2f3"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Apagado",
+        "canonical": "#a1a1aa",
+        "tonalRamp": [
+          "#252527",
+          "#3d3d43",
+          "#575760",
+          "#747481",
+          "#94949e",
+          "#b4b4bb",
+          "#d4d4d8",
+          "#f2f2f3"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Título de lo que suena (móvil y TV) y logo."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Título de tarjeta del panel y cifras del resumen."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Título de canción en resultados y cola."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Texto corrido y subtítulos."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Etiquetas de campo, chips y rótulos cortos."
+      }
+    },
+    "shadows": [
+      {
+        "name": "flotante",
+        "value": "0 12px 32px -8px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.3)",
+        "purpose": "Toasts, tarjeta de entrada y resumen."
+      },
+      {
+        "name": "caratula",
+        "value": "0 30px 60px -18px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.06)",
+        "purpose": "Carátula que suena."
+      },
+      {
+        "name": "foco-campo",
+        "value": "0 0 0 4px rgba(255,77,133,0.16)",
+        "purpose": "Halo de foco de los campos de texto."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Entradas, pulsado de botones y votos."
+      },
+      {
+        "name": "tinte-caratula",
+        "value": "1.2s ease",
+        "purpose": "Cambio lento del color de fondo al cambiar de canción."
+      },
+      {
+        "name": "toast-in",
+        "value": "0.36s cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Entrada de toasts con translate y desenfoque."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "invitados-ancho",
+        "value": "760px"
+      },
+      {
+        "name": "panel-movil",
+        "value": "640px"
+      },
+      {
+        "name": "panel-doble-columna",
+        "value": "980px"
+      },
+      {
+        "name": "tv-vertical",
+        "value": "max-aspect-ratio: 1/1"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón primario",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción principal: Entrar, Añadir, Seguir. Blanco sobre la base oscura.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Entrar</button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:999px;border:1px solid rgba(255,255,255,.07);background:#1f1f23;color:#f5f5f7;font:650 16px -apple-system,\"Segoe UI\",Roboto,sans-serif;cursor:pointer;transition:transform .16s cubic-bezier(.22,1,.36,1),background .15s}.ds-btn:hover{background:#2a2a2f;border-color:rgba(255,255,255,.13)}.ds-btn:active{transform:scale(.97)}.ds-btn:focus-visible{outline:2px solid #ff4d85;outline-offset:3px}.ds-btn-primary{background:#f5f5f7;color:#0c0c0e;border-color:transparent;font-weight:700}.ds-btn-primary:hover{background:#fff;border-color:transparent;box-shadow:0 6px 20px -6px rgba(255,255,255,.25)}"
+    },
+    {
+      "name": "Botón secundario",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Acciones de apoyo: Pausa, Nuevo PIN, Copiar enlace.",
+      "html": "<button class=\"ds-btn\">Pausa</button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:999px;border:1px solid rgba(255,255,255,.07);background:#1f1f23;color:#f5f5f7;font:650 16px -apple-system,\"Segoe UI\",Roboto,sans-serif;cursor:pointer;transition:transform .16s cubic-bezier(.22,1,.36,1),background .15s}.ds-btn:hover{background:#2a2a2f;border-color:rgba(255,255,255,.13)}.ds-btn:active{transform:scale(.97)}.ds-btn:focus-visible{outline:2px solid #ff4d85;outline-offset:3px}"
+    },
+    {
+      "name": "Botón peligroso",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Acciones destructivas: Vaciar cola, Terminar fiesta.",
+      "html": "<button class=\"ds-btn ds-btn-danger\">Terminar fiesta</button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:999px;border:1px solid rgba(255,255,255,.07);background:#1f1f23;color:#f5f5f7;font:650 16px -apple-system,\"Segoe UI\",Roboto,sans-serif;cursor:pointer;transition:transform .16s cubic-bezier(.22,1,.36,1),background .15s}.ds-btn:hover{background:#2a2a2f;border-color:rgba(255,255,255,.13)}.ds-btn:active{transform:scale(.97)}.ds-btn:focus-visible{outline:2px solid #ff4d85;outline-offset:3px}.ds-btn-danger{background:rgba(255,107,107,.12);color:#ff6b6b;border-color:rgba(255,107,107,.3)}.ds-btn-danger:hover{background:rgba(255,107,107,.2);border-color:rgba(255,107,107,.45)}"
+    },
+    {
+      "name": "Campo de texto",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de 50 px con halo rosa al enfocar.",
+      "html": "<input class=\"ds-input\" placeholder=\"Cómo te llamas\">",
+      "css": ".ds-input{width:100%;min-height:50px;padding:0 16px;border-radius:12px;border:1px solid rgba(255,255,255,.07);background:#1f1f23;color:#f5f5f7;font:17px -apple-system,\"Segoe UI\",Roboto,sans-serif;transition:border-color .15s,box-shadow .15s}.ds-input::placeholder{color:#8b8b95}.ds-input:hover{border-color:rgba(255,255,255,.13)}.ds-input:focus{outline:none;border-color:rgba(255,77,133,.7);box-shadow:0 0 0 4px rgba(255,77,133,.16)}"
+    },
+    {
+      "name": "Chip de estado",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Línea de estado del panel; variantes ok, warn, danger, accent.",
+      "html": "<span class=\"ds-chip ds-chip-ok\">Spotify conectado</span> <span class=\"ds-chip\">3 en cola</span>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;background:#1f1f23;color:#a1a1aa;font:600 13px -apple-system,\"Segoe UI\",Roboto,sans-serif}.ds-chip-ok{background:rgba(53,208,127,.13);color:#35d07f}"
+    },
+    {
+      "name": "Voto de la cola",
+      "kind": "custom",
+      "refersTo": "vote",
+      "description": "Cápsula de 44 px con flecha y recuento; rosa cuando es tuyo.",
+      "html": "<button class=\"ds-vote\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 19V5M5 12l7-7 7 7\"/></svg> 0</button> <button class=\"ds-vote ds-on\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 19V5M5 12l7-7 7 7\"/></svg> 2</button>",
+      "css": ".ds-vote{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:56px;height:44px;padding:0 10px;border-radius:999px;border:1px solid transparent;background:transparent;color:#a1a1aa;font:650 15px -apple-system,\"Segoe UI\",Roboto,sans-serif;cursor:pointer}.ds-vote:hover{background:rgba(255,255,255,.06);color:#f5f5f7}.ds-vote:focus-visible{outline:2px solid #ff4d85;outline-offset:2px}.ds-on{color:#ff4d85;background:rgba(255,77,133,.13)}"
+    },
+    {
+      "name": "Tarjeta del panel",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Contenedor plano con borde de línea, sin sombra.",
+      "html": "<section class=\"ds-card\"><h2>Cola</h2><p>3 canciones</p></section>",
+      "css": ".ds-card{background:#18181b;border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:22px;color:#f5f5f7;font-family:-apple-system,\"Segoe UI\",Roboto,sans-serif}.ds-card h2{margin:0 0 4px;font-size:19px;font-weight:700;letter-spacing:-.018em}.ds-card p{margin:0;color:#a1a1aa;font-size:14px}"
+    },
+    {
+      "name": "Toast con acción",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Cápsula flotante con acción «Deshacer».",
+      "html": "<div class=\"ds-toast\">Quitada: Terraza Azul <button class=\"ds-toast-a\">Deshacer</button></div>",
+      "css": ".ds-toast{display:inline-flex;align-items:center;gap:14px;padding:11px 8px 11px 18px;border-radius:999px;font:600 15px -apple-system,\"Segoe UI\",Roboto,sans-serif;color:#f5f5f7;background:rgba(42,42,47,.94);border:1px solid rgba(255,255,255,.13);box-shadow:0 12px 32px -8px rgba(0,0,0,.6),0 2px 6px rgba(0,0,0,.3)}.ds-toast-a{min-height:32px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.1);color:inherit;font:700 14px -apple-system,\"Segoe UI\",Roboto,sans-serif;cursor:pointer}.ds-toast-a:hover{background:rgba(255,255,255,.18)}.ds-toast-a:focus-visible{outline:2px solid #f5f5f7;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "La sala a oscuras",
+    "overview": "fiesta. es una sala a media luz: la interfaz es una base casi negra y neutra, y todo el color lo pone lo que suena. La carátula actual tiñe el fondo (invitados) o inunda la pantalla (TV); el resto son superficies grises que no compiten con la música. El rosa es la única voz de marca y significa siempre lo social: likes, votos propios, «tu canción».\n\nEs una herramienta de uso nocturno, con el móvil en una mano y brillo bajo, y un panel que el anfitrión consulta de pasada. Por eso la densidad es baja, los objetivos táctiles grandes (44-56 px) y el contraste alto. Las tres superficies comparten un mismo sistema de tokens (`shared.css`) y se distinguen por escala: móvil compacto, panel en tarjetas, TV en unidades `vh`.",
+    "keyCharacteristics": [
+      "Una sola base oscura (`night`), sin modo claro; `color-scheme: dark`.",
+      "Capas tonales en vez de sombras para separar superficies; la sombra solo aparece en elementos flotantes.",
+      "Acción principal en blanco, marca y likes en rosa, estados en verde, ámbar y rojo.",
+      "Cápsulas (pill) para toda acción; contenedores redondeados de 16-22 px.",
+      "Tipografía del sistema (SF / Segoe), titulares ajustados y pesos 650-800.",
+      "Iconos de trazo de 2 px con puntas redondeadas, en SVG inline; nunca emojis."
+    ],
+    "rules": [
+      {
+        "name": "The Rosa Means Social Rule",
+        "body": "El rosa aparece solo en lo que es de la gente (likes, votos, «tu canción», marca). Los estados de sistema usan verde, ámbar o rojo, y la acción principal es blanca.",
+        "section": "colors"
+      },
+      {
+        "name": "The Cover Sets The Mood Rule",
+        "body": "El único color de gran superficie es el tinte de la carátula, con transición lenta (1,2 s). Nada más se tiñe.",
+        "section": "colors"
+      },
+      {
+        "name": "The Whole Pixel Rule",
+        "body": "La escala de móvil y panel usa tamaños enteros: 13, 14, 15, 16, 17, 19, 24 px. Nada de medios píxeles.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Numbers Rule",
+        "body": "Tiempos, votos, cupos y PIN llevan `font-variant-numeric: tabular-nums` para no bailar.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Until Floating Rule",
+        "body": "Una tarjeta en reposo no lleva sombra; la sombra indica que algo flota sobre el contenido.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do usar tokens de `shared.css` para todo color; si falta uno, añadirlo allí.",
+      "Do mantener el rosa (`#ff4d85`) solo para lo social y la marca.",
+      "Do dar 44 px de objetivo táctil mínimo en invitados y texto de 13px o más.",
+      "Do dejar que la carátula ponga el color; todo lo demás es neutro.",
+      "Do confirmar con deshacer en un toast en lugar de con diálogos modales.",
+      "Do respetar `prefers-reduced-motion` (`shared.css` anula las animaciones)."
+    ],
+    "donts": [
+      "Don't usar rosa para estados de sistema ni verde o ámbar para lo social.",
+      "Don't añadir bordes de color de 2 px en un solo lado de tarjetas o filas.",
+      "Don't usar `ghost` ni `pin-placeholder` para texto con información.",
+      "Don't poner sombras en tarjetas en reposo ni anidar tarjetas.",
+      "Don't introducir medios píxeles en la escala tipográfica ni fuentes descargadas.",
+      "Don't usar emojis o glifos como iconos; solo los SVG de trazo del sistema.",
+      "Don't poner rótulos en mayúsculas con tracking sobre los títulos ni gradientes en texto."
+    ]
+  }
+}

@@ -46,7 +46,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .n-item.fed .n-sub { color: var(--text); font-weight: 600; }
 .n-votes { display: inline-flex; align-items: center; gap: 0.8vh; font-size: 2.5vh; font-weight: 700; color: var(--pink); font-variant-numeric: tabular-nums; }
 .n-votes .ico { width: 2.8vh; height: 2.8vh; fill: none; stroke-width: 3; }
-.n-votes.zero { color: rgba(245, 245, 247, 0.32); } .n-votes.zero .ico { stroke-width: 2; }
+.n-votes.zero { color: rgba(245, 245, 247, 0.5); } .n-votes.zero .ico { stroke-width: 2; }
 .next-empty { font-size: 2.8vh; color: rgba(245, 245, 247, 0.62); line-height: 1.4; padding: 3vh 0; }
 .next-more { flex: none; font-size: 2.3vh; color: rgba(245, 245, 247, 0.55); padding-left: 1.2vh; }
 /* la máscara solo aparece si ni la primera canción cabe entera */
@@ -64,6 +64,8 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 /* arriba a la izquierda, sobre la columna de la carátula: no tapa la marca ni el QR (columna derecha) */
 #bigToasts { position: fixed; z-index: 100; top: 1vh; left: 5vw; width: 46vw; display: flex; flex-direction: column; align-items: flex-start; gap: 1vh; pointer-events: none; }
 .big-toast { font-size: 3vh; font-weight: 650; padding: 1.2vh 3vh; border-radius: 999px; background: rgba(42, 42, 47, 0.9); border: 1px solid rgba(255, 255, 255, 0.14); box-shadow: 0 3vh 7vh -1vh rgba(0, 0, 0, 0.7); backdrop-filter: blur(20px) saturate(1.4); -webkit-backdrop-filter: blur(20px) saturate(1.4); animation: bt-in 0.6s var(--ease-out) both; max-width: 100%; text-align: left; letter-spacing: -0.01em; }
+/* si el aviso de fallo del reproductor está visible, los avisos bajan para no taparlo */
+body:has(.player-note:not([hidden])) #bigToasts { top: 7vh; }
 .big-toast.skip { border-color: color-mix(in srgb, var(--pink) 55%, transparent); }
 .big-toast.join { border-color: rgba(255, 255, 255, 0.28); }
 .big-toast.out { animation: bt-out 0.4s ease both; }
@@ -73,7 +75,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .locked { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; }
 .locked .card { max-width: max(460px, 60vh); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 18px; padding: 34px; border-radius: 22px; box-shadow: var(--shadow); font-size: max(16px, 2.4vh); }
 .logo.big { font-size: max(64px, 8vh); }
-.fs-hint { position: fixed; right: 2vh; bottom: 1.5vh; font-size: 2.3vh; color: rgba(245, 245, 247, 0.45); transition: opacity 0.6s; pointer-events: none; }
+.fs-hint { position: fixed; right: 2vh; bottom: 1.5vh; font-size: 2.3vh; color: rgba(245, 245, 247, 0.55); transition: opacity 0.6s; pointer-events: none; }
 .fs-hint.gone { opacity: 0; }
 /* con la franja de resumen abajo, el aviso sube arriba a la derecha para no tapar el Top 3 */
 .stage.with-band ~ .fs-hint { top: 1.5vh; bottom: auto; }
