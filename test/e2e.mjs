@@ -767,14 +767,11 @@ async function main() {
     await shot(g[0], '17-guest-admin-only');
   });
   await step('el anfitrion pausa y reanuda desde el panel', async () => {
-    // en CI el botón puede pulsarse justo durante un cambio de estado del reproductor: se reintenta hasta 3 veces
-    let paused = false;
-    for (let i = 0; i < 3 && !paused; i++) {
-      if ((await mockState()).mock.playing === false) { paused = true; break; }
-      await admin.locator('#card-player button', { hasText: 'Pausa' }).click();
-      try { await waitFor(async () => (await mockState()).mock.playing === false, { timeout: 2500, msg: 'mock no pausa' }); paused = true; } catch { /* reintentar */ }
-    }
-    expect(paused, 'mock no pausa tras 3 intentos');
+    // el paso anterior puede dejar el reproductor entre canciones: primero, que esté sonando y el panel lo sepa
+    await waitFor(async () => (await mockState()).mock.playing === true, { timeout: 10000, msg: 'el mock no suena antes de pausar' });
+    await waitFor(async () => (await admin.locator('#card-player button', { hasText: 'Pausa' }).count()) > 0, { msg: 'el panel no muestra «Pausa»' });
+    await admin.locator('#card-player button', { hasText: 'Pausa' }).click();
+    await waitFor(async () => (await mockState()).mock.playing === false, { msg: 'mock no pausa' });
     await waitFor(async () => g[1].locator('#pausedBadge').isVisible());
     expect((await mockState()).state.pausedByUs === true, 'pausedByUs');
     await sleep(1200);
