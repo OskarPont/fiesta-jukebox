@@ -19,9 +19,9 @@ const MIN_PLAYED_MS = 30000;
  * una cancion cada vez, justo antes de que haga falta.
  */
 export class Engine {
-  constructor({ store, party, spotify, library = null, onChange = () => {}, toast = () => {}, hasClients = () => false,
+  constructor({ store, party, spotify, onChange = () => {}, toast = () => {}, hasClients = () => false,
     now = Date.now, getScale = () => 1, feedLeadMs = 20000, autoTimers = true, log = () => {} }) {
-    this.store = store; this.s = store.state; this.party = party; this.spotify = spotify; this.library = library;
+    this.store = store; this.s = store.state; this.party = party; this.spotify = spotify;
     this.onChange = onChange; this.toast = toast; this.hasClients = hasClients;
     this.now = now; this.getScale = getScale; this.feedLead = feedLeadMs; this.autoTimers = autoTimers; this.log = log;
     this.lock = new Mutex();
@@ -149,7 +149,7 @@ export class Engine {
         const idle = this.isIdle(pl);
         await this.verifyFed(np, idle);
         if (!s.fed && np && np.isPlaying && this.remainingMs(np) <= this.feedLead) {
-          const item = this.party.nextToFeed() || this.classicFiller();
+          const item = this.party.nextToFeed();
           if (item) await this.feed(item);
         }
         if (idle && !s.fed) await this.coldStart(pl);
@@ -226,9 +226,7 @@ export class Engine {
         addedAt: prev.addedAt || null, queueLikes: prev.queueLikes || 0, playLikes: (prev.playLikes || []).length,
         filler: prev.fromQueue ? null : (prev.filler || 'host'), skipped: !!prev.skipped,
       };
-      const wasActive = this.party.active;
       this.party.pushHistory(entry);
-      if (wasActive && this.library) this.library.recordPlay(entry);
     }
   }
 
@@ -239,8 +237,8 @@ export class Engine {
     if (fed && fed.trackId === np.trackId) {
       const item = s.queue.find((q) => q.qid === fed.qid);
       s.queue = s.queue.filter((q) => q.qid !== fed.qid);
-      if (fed.filler === 'classic' || !fed.addedBy) {
-        np.filler = 'classic';
+      if (!fed.addedBy) {
+        np.filler = 'host';
       } else {
         np.fromQueue = { addedBy: fed.addedBy };
         np.queueLikes = item ? item.votes.length : (fed.queueLikes || 0);
@@ -306,26 +304,9 @@ export class Engine {
     return chosen.id;
   }
 
-  /** Clasico de fiestas anteriores para el relleno (si esta activado y hay). */
-  classicFiller() {
-    const s = this.s; const st = s.settings;
-    if (!this.library || st.fillerMode !== 'classics' || !this.party.active) return null;
-    const busy = new Set(s.queue.map((q) => q.trackId));
-    if (s.nowPlaying) busy.add(s.nowPlaying.trackId);
-    if (s.fed) busy.add(s.fed.trackId);
-    const played = this.party.partyHistory().map((h) => h.trackId);
-    let t = this.library.pickFiller({ minScore: st.classicsMinScore, exclude: new Set([...busy, ...played]) });
-    if (!t) t = this.library.pickFiller({ minScore: st.classicsMinScore, exclude: new Set([...busy, ...played.slice(-15)]) });
-    if (!t) return null;
-    return {
-      qid: `classic:${t.trackId}`, uri: t.uri, trackId: t.trackId, name: t.name, artists: t.artists,
-      durationMs: t.durationMs || 0, addedBy: null, filler: 'classic', votes: [],
-    };
-  }
-
   async coldStart(pl) {
     const s = this.s;
-    const item = this.party.nextToFeed() || this.classicFiller();
+    const item = this.party.nextToFeed();
     if (!item) return;
     const deviceId = await this.chooseDevice(pl);
     if (!deviceId) return;
@@ -348,7 +329,7 @@ export class Engine {
       const s = this.s;
       try {
         if (!s.fed) {
-          const item = this.party.active ? (this.party.nextToFeed() || this.classicFiller()) : null;
+          const item = this.party.active ? (this.party.nextToFeed()) : null;
           if (item) await this.feed(item);
         }
         await this.spotify.next();

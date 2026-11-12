@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Library, summarize, selectForPlaylist, scoreOf } from '../../src/library.js';
+import { Library, summarize, selectForPlaylist } from '../../src/library.js';
 
 const H = [
   { trackId: 'a', uri: 'spotify:track:a', name: 'A', artists: ['x'], addedBy: { id: 'g1', name: 'Laura' }, playedAt: 100, addedAt: 50, queueLikes: 2, playLikes: 3 },
@@ -63,21 +63,31 @@ test('playlist: filtros, tipo de like y orden', () => {
   assert.deepEqual(r.map((h) => h.trackId), ['a', 'd']);
 });
 
-test('biblioteca: clasicos, excluir, relleno y archivo', () => {
+test('biblioteca: archivo de fiestas', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lib-'));
   const lib = new Library(dir, { debounceMs: 1 }).load();
-  for (const h of H) lib.recordPlay(h);
-  lib.recordPlay({ ...H[2], playLikes: 1, queueLikes: 0, playedAt: 900 });
-  assert.equal(scoreOf(lib.data.tracks.c), 3);
-  assert.deepEqual(lib.classics({ minScore: 2 }).map((t) => t.trackId), ['a', 'c']);
-  lib.setExcluded('c', true);
-  assert.deepEqual(lib.classics({ minScore: 2 }).map((t) => t.trackId), ['a']);
-  assert.equal(lib.pickFiller({ minScore: 2, exclude: new Set(['a']) }), null);
-  assert.equal(lib.pickFiller({ minScore: 1, exclude: new Set(['b']) }).trackId, 'a');
-  assert.ok(['a', 'b'].includes(lib.pickFiller({ minScore: 1 }).trackId));
   lib.archiveParty({ id: 'p1', name: 'F', startedAt: 0, endedAt: 1000, joined: 3 }, H.map((h) => ({ ...h, partyId: 'p1' })));
   lib.flush();
   const again = new Library(dir).load();
   assert.equal(again.listParties()[0].songs, 4);
-  assert.equal(again.data.tracks.c.excluded, true);
+  assert.deepEqual(Object.keys(again.data), ['parties']);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('biblioteca: tolera y descarta los datos antiguos de clasicos sin perder fiestas', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lib-old-'));
+  const party = { id: 'p1', name: 'F', startedAt: 0, endedAt: 1000, joined: 3, history: H.map((h) => ({ ...h, partyId: 'p1' })) };
+  fs.writeFileSync(path.join(dir, 'library.json'), JSON.stringify({
+    tracks: { a: { trackId: 'a', plays: 2, playLikes: 3, queueLikes: 1, excluded: true } },
+    parties: [party],
+    classics: { playlistId: 'pl1', url: 'https://x', updatedAt: 5, count: 3 },
+  }));
+  const lib = new Library(dir, { debounceMs: 1 }).load();
+  assert.deepEqual(Object.keys(lib.data), ['parties']);
+  assert.equal(lib.listParties()[0].songs, 4);
+  lib.flush();
+  const saved = JSON.parse(fs.readFileSync(path.join(dir, 'library.json'), 'utf8'));
+  assert.ok(!('tracks' in saved) && !('classics' in saved), 'el fichero se reescribe limpio');
+  assert.equal(saved.parties.length, 1);
+  fs.rmSync(dir, { recursive: true, force: true });
 });

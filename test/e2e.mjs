@@ -45,6 +45,18 @@ async function waitFor(fn, { timeout = 5000, interval = 60, msg = 'waitFor' } = 
   throw new Error(`${msg} (timeout ${timeout} ms)${last ? ': ' + last.message : ''}`);
 }
 
+// ---------- panel: engranajes y historial plegable (#36) ----------
+async function openGear(page, card) {
+  const b = page.locator(`${card} button.gear`);
+  if ((await b.getAttribute('aria-expanded')) !== 'true') await b.click();
+  await page.waitForSelector(`${card} .set-panel`, { state: 'visible' });
+}
+async function openHistory(page) {
+  const b = page.locator('#card-history .cmp-toggle');
+  if ((await b.getAttribute('aria-expanded')) !== 'true') await b.click();
+  await page.waitForSelector('#card-history .hist-body', { state: 'visible' });
+}
+
 // ---------- servidor ----------
 let server = null; let serverLog = '';
 async function startServer(speed = 1) {
@@ -155,6 +167,9 @@ async function main() {
     await admin.waitForSelector('#card-spotify .chip:has-text("Conectado")');
   });
   await step('admin: elegir dispositivo', async () => {
+    if (!(await admin.locator('#card-device .dev').first().isVisible().catch(() => false))) {
+      await admin.locator('#card-device .cmp-toggle').click();     // compacta: «Cambiar» despliega la lista
+    }
     await admin.waitForSelector('#card-device .dev');
     await admin.locator('#card-device .dev').first().click();
     await admin.waitForSelector('#card-device .dev.sel');
@@ -166,12 +181,14 @@ async function main() {
     await admin.waitForSelector('#card-party .pin-big');
     pin = (await admin.textContent('#card-party .pin-big')).trim();
     expect(/^\d{4}$/.test(pin), 'pin de 4 digitos: ' + pin);
-    await admin.waitForFunction(() => document.querySelector('#card-party .qr-mini img')?.naturalWidth > 0);
+    // waitForFunction evalua con new Function y choca con la CSP del panel (fallo intermitente): se sondea con evaluate
+    await waitFor(async () => admin.evaluate(() => (document.querySelector('#card-party .qr-mini img')?.naturalWidth || 0) > 0), { msg: 'el QR del panel no carga' });
   });
   await step('admin: cambiar un ajuste desde la UI (orden FIFO) y volver a votos', async () => {
-    await admin.locator('#card-settings .set', { hasText: 'Orden de la cola' }).locator('button', { hasText: 'Orden de llegada' }).click();
+    await openGear(admin, '#card-queue');
+    await admin.locator('#card-queue .set', { hasText: 'Orden de la cola' }).locator('button', { hasText: 'Orden de llegada' }).click();
     await waitFor(async () => (await (await adminCtx.request.get(`${BASE}/api/admin/status`)).json()).settings.ordering === 'fifo', { msg: 'ajuste no guardado' });
-    await admin.locator('#card-settings .set', { hasText: 'Orden de la cola' }).locator('button', { hasText: 'Por votos' }).click();
+    await admin.locator('#card-queue .set', { hasText: 'Orden de la cola' }).locator('button', { hasText: 'Por votos' }).click();
     await waitFor(async () => (await (await adminCtx.request.get(`${BASE}/api/admin/status`)).json()).settings.ordering === 'votes');
   });
   await step('admin: ajustes de prueba (espera de añadir 0)', async () => {
@@ -180,34 +197,30 @@ async function main() {
     const bad = await api(adminCtx, 'PUT', 'admin/settings', { skipVotePct: 500 });
     expect(bad.status === 400, 'rango invalido debe dar 400');
   });
-  await step('admin: ajustes agrupados, condicionales y accesibles', async () => {
+  await step('admin: ajustes en los paneles de Cola e Invitados, condicionales y accesibles', async () => {
     const st = async () => (await api(adminCtx, 'GET', 'admin/status')).body.settings;
     const orig = await st();
-    const keys = ['skipMode', 'pauseMode', 'fillerMode', 'maxQueuedPerGuest', 'skipVoteMode', 'skipVotePct', 'skipVoteFixed'];
+    const keys = ['skipMode', 'pauseMode', 'maxQueuedPerGuest', 'skipVoteMode', 'skipVotePct', 'skipVoteFixed'];
     try {
-      const groups = admin.locator('#card-settings details');
-      expect(await groups.count() === 3, 'tres grupos de ajustes');
-      const want = [
-        ['Cola', ['maxQueuedPerGuest', 'addCooldownSec', 'maxDurationMin', 'noRepeatMin'], ['Cola abierta', 'Orden de la cola', 'Permitir canciones explícitas']],
-        ['Controles de los invitados', ['skipVotePct', 'skipVoteFixed', 'controlCooldownSec', 'globalControlCooldownSec'], ['Pausar y reanudar', 'Saltar canción']],
-        ['Relleno y clásicos', ['classicsMinScore'], ['Cuando la cola se vacía', 'Actualizar "Clásicos de fiesta"']],
+      expect(await admin.locator('#card-settings').count() === 0, 'ya no existe la tarjeta Ajustes');
+      await openGear(admin, '#card-queue'); await openGear(admin, '#card-guests');
+      const panels = [
+        ['#card-queue .set-panel', 'Ajustes de la cola', ['maxQueuedPerGuest', 'addCooldownSec', 'maxDurationMin', 'noRepeatMin'], ['Cola abierta', 'Orden de la cola', 'Permitir canciones explícitas']],
+        ['#card-guests .set-panel', 'Ajustes de los invitados', ['skipVotePct', 'skipVoteFixed', 'controlCooldownSec', 'globalControlCooldownSec'], ['Pausar y reanudar', 'Saltar canción']],
       ];
-      for (let i = 0; i < 3; i++) {
-        const g = groups.nth(i);
-        expect((await g.locator('> summary').textContent()).trim() === want[i][0], 'título del grupo ' + i);
-        for (const k of want[i][1]) expect(await g.locator(`input#set-${k}`).count() === 1, `${k} está en «${want[i][0]}»`);
-        for (const l of want[i][2]) expect(await g.locator('.set', { hasText: l }).count() >= 1, `«${l}» está en «${want[i][0]}»`);
+      for (const [sel, label, ids, texts] of panels) {
+        const g = admin.locator(sel);
+        expect(await g.getAttribute('aria-label') === label, `panel «${label}»`);
+        for (const k of ids) expect(await g.locator(`#set-${k}`).count() === 1, `${k} está en «${label}»`);
+        for (const l of texts) expect(await g.locator('.set', { hasText: l }).count() >= 1, `«${l}» está en «${label}»`);
       }
-      expect(await groups.nth(0).evaluate((d) => d.open), 'el primer grupo empieza abierto');
-      expect(!(await groups.nth(1).evaluate((d) => d.open)) && !(await groups.nth(2).evaluate((d) => d.open)), 'los otros empiezan cerrados');
-      await groups.nth(1).locator('> summary').click();
-      await groups.nth(2).locator('> summary').click();
-      const row = (k) => admin.locator(`#card-settings .set:has(#set-${k})`);
-      const seg = (label, btn) => admin.locator('#card-settings .set', { hasText: label }).locator('button', { hasText: btn });
+      expect(await admin.locator('#card-queue #skipLive').count() === 0 && await admin.locator('#card-guests #skipLive').count() === 1, '#skipLive vive en Invitados');
+      const row = (k) => admin.locator(`.set-panel .set:has(#set-${k})`);
+      const seg = (label, btn) => admin.locator('.set-panel .set', { hasText: label }).locator('button', { hasText: btn });
       // votos para saltar solo con «Por votos»
       await seg('Saltar canción', 'Por votos').click();
-      expect(await admin.locator('#card-settings .set', { hasText: '¿Cuántos votos hacen falta?' }).isVisible(), 'por votos: se ve el selector de modo');
-      expect(await admin.locator('#card-settings .set', { hasText: 'Mínimo de votos' }).count() === 0, 'ya no existe «Mínimo de votos»');
+      expect(await admin.locator('#card-guests .set', { hasText: '¿Cuántos votos hacen falta?' }).isVisible(), 'por votos: se ve el selector de modo');
+      expect(await admin.locator('.set-panel .set', { hasText: 'Mínimo de votos' }).count() === 0, 'ya no existe «Mínimo de votos»');
       await seg('¿Cuántos votos hacen falta?', 'Parte de la gente').click();
       expect(await row('skipVotePct').isVisible() && !(await row('skipVoteFixed').isVisible()), 'parte de la gente: solo el range de porcentaje');
       const live = admin.locator('#skipLive');
@@ -258,16 +271,11 @@ async function main() {
       expect(!(await row('controlCooldownSec').isVisible()) && !(await row('globalControlCooldownSec').isVisible()), 'solo yo: no se ven las esperas');
       await seg('Saltar canción', 'Directo').click();
       expect(await row('controlCooldownSec').isVisible() && await row('globalControlCooldownSec').isVisible(), 'directo: se ven las esperas');
-      // puntos de clásico solo con clásicos
-      await seg('Cuando la cola se vacía', 'Mi playlist de Spotify').click();
-      expect(!(await row('classicsMinScore').isVisible()), 'playlist: no se ven los puntos');
-      await seg('Cuando la cola se vacía', 'Clásicos de mis fiestas').click();
-      expect(await row('classicsMinScore').isVisible(), 'clásicos: se ven los puntos');
       // salidas accesibles
-      const bad = await admin.evaluate(() => [...document.querySelectorAll('#card-settings output')].filter((o) => { const r = document.getElementById(o.getAttribute('for') || ''); return !r || r.type !== 'range'; }).length);
+      const bad = await admin.evaluate(() => [...document.querySelectorAll('.set-panel output')].filter((o) => { const r = document.getElementById(o.getAttribute('for') || ''); return !r || r.type !== 'range'; }).length);
       expect(bad === 0, 'cada output apunta a su range');
-      const ranges = await admin.evaluate(() => [...document.querySelectorAll('#card-settings input[type=range]')].map((r) => [r.id, r.getAttribute('aria-valuetext')]));
-      expect(ranges.length === 9 && ranges.every(([id, t]) => id && t), 'cada range con aria-valuetext: ' + JSON.stringify(ranges));
+      const ranges = await admin.evaluate(() => [...document.querySelectorAll('.set-panel input[type=range]')].map((r) => [r.id, r.getAttribute('aria-valuetext')]));
+      expect(ranges.length === 8 && ranges.every(([id, t]) => id && t), 'cada range con aria-valuetext: ' + JSON.stringify(ranges));
       // guardar un range
       const next = orig.maxQueuedPerGuest === 6 ? 7 : 6;
       await watchToasts(admin);
@@ -276,9 +284,7 @@ async function main() {
       await waitFor(async () => (await seenToasts(admin)).includes('Ajustes guardados'), { msg: 'falta el aviso «Ajustes guardados»' });
       expect((await st()).maxQueuedPerGuest === next, 'el range se guarda');
       expect(await admin.locator('#set-maxQueuedPerGuest').getAttribute('aria-valuetext') === String(next), 'aria-valuetext al día');
-      await groups.nth(1).locator('> summary').click();
-      await groups.nth(2).locator('> summary').click();
-      await admin.locator('#card-settings').screenshot({ path: path.join(SHOTS, '62-admin-ajustes.png') });
+      await admin.locator('#card-guests').screenshot({ path: path.join(SHOTS, '62-admin-ajustes.png') });
     } finally {
       await api(adminCtx, 'PUT', 'admin/settings', Object.fromEntries(keys.map((k) => [k, orig[k]])));
     }
@@ -533,7 +539,7 @@ async function main() {
     expect(await tv.evaluate(() => document.getElementById('sumSongImg').hidden && document.getElementById('sumNowImg').hidden), 'imágenes del resumen ocultas por defecto');
     await waitFor(async () => (await tv.textContent('#npTitle')).includes(X.name));
     await waitFor(async () => (await tv.locator('#next .n-item').count()) >= 3);
-    await tv.waitForFunction(() => document.querySelector('#qr')?.naturalWidth > 0);
+    await waitFor(async () => tv.evaluate(() => (document.querySelector('#qr')?.naturalWidth || 0) > 0), { msg: 'el QR de la pantalla no carga' });
     expect((await tv.textContent('#qrPin')).trim() === pin, 'PIN visible');
     await sleep(900);
     await shot(tv, '30-pantalla-tv');
@@ -869,7 +875,7 @@ async function main() {
     await mctx.close();
   });
   await step('admin: modo fiesta, lo esencial arriba, PIN a mano y rejilla estable (#9)', async () => {
-    const tops = () => admin.evaluate(() => Object.fromEntries([...document.querySelectorAll('#cards .acard')].map((c) => { const r = c.getBoundingClientRect(); return [c.id, { x: Math.round(r.left), top: Math.round(r.top + scrollY), w: Math.round(r.width) }]; })));
+    const tops = () => admin.evaluate(() => Object.fromEntries([...document.querySelectorAll('#cards .acard')].map((c) => { const r = c.getBoundingClientRect(); return [c.id, { x: Math.round(r.left), top: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) }]; })));
     const domOrder = () => admin.evaluate(() => [...document.querySelectorAll('#cards .acard')].map((c) => c.id.replace('card-', '')));
     const state = async () => (await api(adminCtx, 'GET', 'admin/status')).body;
     const prev = (await state()).settings;
@@ -882,7 +888,7 @@ async function main() {
       expect(m['card-player'].top < m['card-queue'].top && m['card-queue'].top < m['card-party'].top, 'móvil: reproducción, cola y luego fiesta: ' + JSON.stringify(m));
       expect(m['card-queue'].top <= 844 * 1.5, 'móvil: la cola empieza dentro de 1,5 pantallas: ' + m['card-queue'].top);
       // el orden de lectura (DOM, y por tanto el foco) es exactamente el del modo fiesta, y coincide con el visual
-      const want = ['player', 'queue', 'party', 'guests', 'history', 'classics', 'settings', 'device', 'spotify'];
+      const want = ['player', 'queue', 'party', 'guests', 'history', 'device', 'spotify'];
       const dom = await domOrder();
       expect(dom.join() === want.join(), 'móvil: orden del DOM: ' + dom.join());
       const visual = Object.entries(m).sort((a, b) => a[1].top - b[1].top).map(([id]) => id.replace('card-', ''));
@@ -902,8 +908,9 @@ async function main() {
       expect(s1.player.deviceName && line.includes(s1.player.deviceName), 'estado: dispositivo ' + s1.player.deviceName + ': ' + line);
       const nAct = s1.guests.filter((x) => x.active && !x.banned).length, nQ = (await mockState()).state.queue.length;
       expect(nAct >= 2 && line.includes(`${nAct} activos`), `estado: ${nAct} activos: ` + line);
-      expect(nQ >= 1 && line.includes(`${nQ} en cola`), `estado: ${nQ} en cola: ` + line);
-      expect(await admin.locator('#topChips .chip').count() === 4, 'estado: cuatro chips');
+      expect(nQ >= 1 && (await admin.textContent('#card-queue header')).includes(`${nQ} canciones`), `el recuento de la cola (${nQ}) está en la tarjeta Cola`);
+      expect(!/en cola/.test(line), 'estado: sin chip «N en cola» en la cabecera: ' + line);
+      expect(await admin.locator('#topChips .chip').count() === 3, 'estado: tres chips');
       // PIN a mano: visible, con el PIN, y lleva a la tarjeta
       const pj = admin.locator('#pinJump');
       expect(await pj.isVisible(), 'el enlace del PIN se ve');
@@ -928,7 +935,7 @@ async function main() {
       const colOf = (r) => (r.x === Math.min(...xs) ? 'a' : 'b');
       const cols = { a: [], b: [] };
       for (const [id, r] of Object.entries(d0).sort((a, b) => a[1].top - b[1].top)) cols[colOf(r)].push(id.replace('card-', ''));
-      expect(cols.a.join() === 'player,queue,guests' && cols.b.join() === 'party,history,classics,settings,device,spotify', 'escritorio: reparto por columnas: ' + JSON.stringify(cols));
+      expect(cols.a.join() === 'player,queue' && cols.b.join() === 'party,guests,history,device,spotify', 'escritorio: reparto por columnas: ' + JSON.stringify(cols));
       // el DOM baja por la primera columna y luego por la segunda
       expect((await domOrder()).join() === [...cols.a, ...cols.b].join(), 'escritorio: el DOM sigue las columnas');
       // la cola crece y ninguna tarjeta cambia de columna
@@ -944,8 +951,9 @@ async function main() {
       await waitFor(async () => (await admin.locator('#card-queue .aq-item').count()) === n0 + 3, { msg: 'las canciones nuevas no llegan al panel' });
       const d1 = await tops();
       for (const id of Object.keys(d0)) expect(d1[id].x === d0[id].x && d1[id].w === d0[id].w, `escritorio: ${id} cambia de columna: ${JSON.stringify([d0[id], d1[id]])}`);
-      expect(d1['card-guests'].top > d0['card-guests'].top, 'la cola ha crecido de verdad');
-      expect((await admin.textContent('#topChips')).includes(`${n0 + 3} en cola`), 'estado: la cola sube en la línea de estado');
+      expect(d1['card-queue'].h > d0['card-queue'].h, 'la cola ha crecido de verdad');
+      expect((await admin.textContent('#card-queue header')).includes(`${n0 + 3} canciones`), 'el recuento sube en la tarjeta Cola');
+      expect(!/en cola/.test(await admin.textContent('#topChips')), 'sin recuento en la cabecera');
       await shot(admin, '61-admin-fiesta-escritorio', { fullPage: false });
     } finally {
       for (const qid of extra) await api(adminCtx, 'DELETE', `admin/queue/${qid}`);
@@ -954,6 +962,133 @@ async function main() {
       await admin.evaluate(() => scrollTo(0, 0));
     }
     await waitFor(async () => (await admin.locator('#card-queue .aq-item').count()) === 3, { msg: 'la cola vuelve a sus 3 canciones' });
+  });
+  await step('admin: panel por importancia, engranajes, historial plegado y conexión compacta (#36)', async () => {
+    const state = async () => (await api(adminCtx, 'GET', 'admin/status')).body;
+    const prev = (await state()).settings;
+    const tops = () => admin.evaluate(() => Object.fromEntries([...document.querySelectorAll('#cards .acard')].map((c) => { const r = c.getBoundingClientRect(); return [c.id.replace('card-', ''), { x: Math.round(r.left), top: Math.round(r.top + scrollY), w: Math.round(r.width) }]; })));
+    const resetUi = () => admin.evaluate(() => { try { for (const k of Object.keys(localStorage)) if (k.startsWith('fiesta.set.open') || k === 'fiesta.hist.open') localStorage.removeItem(k); } catch { /* nada */ } });
+    const reload = async () => { await admin.reload(); await admin.waitForSelector('#dash:not([hidden]) #card-queue'); await sleep(500); };
+    const expanded = (sel) => admin.locator(sel).getAttribute('aria-expanded');
+    await resetUi(); await reload();
+    try {
+      // ---- móvil: una columna, por importancia ----
+      await admin.setViewportSize({ width: 390, height: 844 }); await sleep(400);
+      await admin.evaluate(() => scrollTo(0, 0));
+      const m = await tops();
+      const visual = Object.entries(m).sort((a, b) => a[1].top - b[1].top).map(([id]) => id);
+      expect(visual.join() === 'player,queue,party,guests,history,device,spotify', 'móvil: orden: ' + visual.join());
+      expect(new Set(Object.values(m).map((r) => r.x)).size === 1, 'móvil: una sola columna');
+      expect(await admin.locator('#card-settings').count() === 0 && await admin.locator('#card-classics').count() === 0, 'no hay tarjeta Ajustes ni Clásicos');
+      expect(await admin.locator('text=/Clásicos/').count() === 0, 'ni rastro de «Clásicos» en el panel');
+
+      // ---- engranajes: etiqueta, aria-controls y teclado ----
+      for (const [card, label] of [['#card-queue', 'Ajustes de la cola'], ['#card-guests', 'Ajustes de los invitados']]) {
+        const g = `${card} button.gear`;
+        expect(await admin.locator(g).getAttribute('aria-label') === label, `aria-label «${label}»`);
+        const ctl = await admin.locator(g).getAttribute('aria-controls');
+        expect(ctl && await admin.locator(`${card} #${ctl}`).count() === 1, 'aria-controls apunta al panel dentro de la tarjeta');
+        expect(await expanded(g) === 'false' && !(await admin.locator(`#${ctl}`).isVisible()), `${label}: empieza cerrado`);
+        await admin.locator(g).focus();
+        await admin.keyboard.press('Enter');
+        await waitFor(async () => (await expanded(g)) === 'true' && await admin.locator(`#${ctl}`).isVisible(), { msg: `${label}: Enter abre` });
+        await admin.keyboard.press('Enter');
+        await waitFor(async () => (await expanded(g)) === 'false' && !(await admin.locator(`#${ctl}`).isVisible()), { msg: `${label}: Enter cierra` });
+        await admin.keyboard.press('Enter');
+        await waitFor(async () => (await expanded(g)) === 'true', { msg: `${label}: Enter abre otra vez` });
+        // el panel va encima de la lista dentro de la tarjeta
+        const above = await admin.evaluate(({ card, ctl }) => { const p = document.getElementById(ctl).getBoundingClientRect(); const l = document.querySelector(`${card} ul, ${card} .empty-note`)?.getBoundingClientRect(); return !l || p.bottom <= l.top + 1; }, { card, ctl });
+        expect(above, `${label}: el panel está encima de la lista`);
+      }
+
+      // ---- cambiar un ajuste de cada panel: aviso y API ----
+      await watchToasts(admin);
+      const next = prev.maxQueuedPerGuest === 5 ? 6 : 5;
+      await admin.locator('#card-queue #set-maxQueuedPerGuest').fill(String(next));
+      await admin.locator('#card-queue #set-maxQueuedPerGuest').dispatchEvent('change');
+      await waitFor(async () => (await seenToasts(admin)).includes('Ajustes guardados'), { msg: 'falta «Ajustes guardados» (Cola)' });
+      await waitFor(async () => (await state()).settings.maxQueuedPerGuest === next, { msg: 'la API no refleja el ajuste de la cola' });
+      await admin.evaluate(() => { window.__toasts = []; });
+      await admin.locator('#card-guests .set', { hasText: 'Pausar y reanudar' }).locator('button', { hasText: 'Solo yo' }).click();
+      await waitFor(async () => (await seenToasts(admin)).includes('Ajustes guardados'), { msg: 'falta «Ajustes guardados» (Invitados)' });
+      await waitFor(async () => (await state()).settings.pauseMode === 'admin', { msg: 'la API no refleja el ajuste de invitados' });
+      // y las reglas condicionales de #10 siguen donde tocan (votos solo con «Por votos», esperas en directo)
+      await admin.locator('#card-guests .set', { hasText: 'Saltar canción' }).locator('button', { hasText: 'Por votos' }).click();
+      expect(await admin.locator('#card-guests #skipLive').isVisible(), 'por votos: se ve la línea en vivo en Invitados');
+
+      // ---- los paneles se recuerdan ----
+      await waitFor(async () => (await state()).settings.skipMode === 'vote', { msg: 'modo de salto guardado' });
+      await reload();
+      expect(await expanded('#card-queue button.gear') === 'true' && await expanded('#card-guests button.gear') === 'true', 'los engranajes recuerdan que estaban abiertos');
+      await admin.locator('#card-queue button.gear').click();
+      await reload();
+      expect(await expanded('#card-queue button.gear') === 'false' && await expanded('#card-guests button.gear') === 'true', 'cada engranaje recuerda lo suyo');
+      await admin.evaluate(() => scrollTo(0, 0));
+      await shot(admin, '66-admin-panel-movil', { fullPage: true });
+
+      // ---- historial: plegado con una línea; abierto, tres apartados ----
+      const tg = '#card-history .cmp-toggle';
+      expect(await expanded(tg) === 'false' && !(await admin.locator('#card-history .hist-body').isVisible()), 'el historial empieza plegado');
+      const sm = (await api(adminCtx, 'GET', 'admin/history/current')).body.summary;
+      const wantLine = sm && sm.songs ? new RegExp(`^${sm.songs} canci(ón|ones) · ${sm.playLikes} likes?`) : /^Todavía no ha sonado nada$/;
+      const line = ((await admin.locator('#card-history header .sub').textContent()) || '').trim();
+      expect(wantLine.test(line), 'resumen de una línea: «' + line + '»');
+      expect(await admin.locator('#card-history .hsec').count() === 3, 'tres apartados');
+      await admin.locator(tg).focus();
+      await admin.keyboard.press('Enter');
+      await waitFor(async () => (await expanded(tg)) === 'true' && await admin.locator('#card-history .hist-body').isVisible(), { msg: 'Enter abre el historial' });
+      const heads = await admin.locator('#card-history .hsec h3').allTextContents();
+      expect(heads.join('|') === 'Resumen|Canciones|Crear playlist', 'apartados: ' + heads.join('|'));
+      for (const h of ['Resumen', 'Canciones', 'Crear playlist']) expect(await admin.locator('#card-history .hsec', { has: admin.locator('h3', { hasText: h }) }).isVisible(), `se ve «${h}»`);
+      expect(await admin.locator('#card-history .builder button', { hasText: 'Crear playlist en Spotify' }).isVisible(), 'el constructor está dentro de Crear playlist');
+      await reload();
+      expect(await expanded(tg) === 'true', 'el historial recuerda que estaba abierto');
+      await admin.locator(tg).click();
+      expect(await expanded(tg) === 'false', 'se vuelve a plegar');
+
+      // ---- sin duplicados ----
+      expect(await admin.getByText('Abrir pantalla', { exact: true }).count() === 1 && await admin.locator('a[href$="pantalla/"]').count() === 1, 'una sola «Abrir pantalla»');
+      expect(await admin.locator('.a-top a[href$="pantalla/"]').count() === 1 && await admin.locator('#card-party a[href$="pantalla/"]').count() === 0, 'y está en la cabecera, no en la tarjeta Fiesta');
+      expect(!/en cola/.test(await admin.textContent('#topChips')) && !/en cola/.test(await admin.textContent('#card-player header')), 'el recuento de la cola no está en la cabecera ni en Reproducción');
+      expect((await admin.textContent('#card-queue header')).includes(' canciones'), 'el recuento está en la tarjeta Cola');
+
+      // ---- Spotify y Dispositivo: una línea cuando todo va bien ----
+      for (const [card, txt] of [['#card-spotify', 'Conectado'], ['#card-device', null]]) {
+        expect(await admin.locator(`${card}.compact`).count() === 1, `${card} compacta`);
+        expect(await admin.locator(`${card} .cmp-sum`).isVisible() && !(await admin.locator(`${card}-body`).isVisible()), `${card}: una línea y cuerpo oculto`);
+        if (txt) expect((await admin.locator(`${card} .cmp-sum`).textContent()).includes(txt), `${card}: ${txt}`);
+        const h = await admin.locator(card).evaluate((e) => e.getBoundingClientRect().height);
+        expect(h < 100, `${card}: compacta (${Math.round(h)} px)`);
+        expect(await admin.locator(`${card} .cmp-toggle`).textContent() === 'Cambiar' && await expanded(`${card} .cmp-toggle`) === 'false', `${card}: botón «Cambiar»`);
+      }
+      expect((await admin.locator('#card-device .cmp-sum').textContent()).trim() === (await state()).player.deviceName, 'el dispositivo compacto muestra su nombre');
+      await admin.locator('#card-device .cmp-toggle').click();
+      await admin.waitForSelector('#card-device .dev', { state: 'visible' });
+      expect(await expanded('#card-device .cmp-toggle') === 'true' && await admin.locator('#card-device.compact').count() === 0, '«Cambiar» despliega la lista de dispositivos');
+      await admin.locator('#card-device .cmp-toggle').click();
+      await admin.waitForSelector('#card-device.compact');
+
+      // ---- escritorio ----
+      await admin.setViewportSize({ width: 1440, height: 900 }); await sleep(400);
+      await admin.evaluate(() => scrollTo(0, 0));
+      const d = await tops();
+      const xs = [...new Set(Object.values(d).map((r) => r.x))].sort((a, b) => a - b);
+      expect(xs.length === 2, 'escritorio: dos columnas');
+      const cols = { a: [], b: [] };
+      for (const [id, r] of Object.entries(d).sort((a, b) => a[1].top - b[1].top)) cols[r.x === xs[0] ? 'a' : 'b'].push(id);
+      expect(cols.a.join() === 'player,queue' && cols.b.join() === 'party,guests,history,device,spotify', 'escritorio: columnas ' + JSON.stringify(cols));
+      expect(d.player.top < 900 && d.queue.top < 900 && d.party.top < 900 && d.guests.top < 900, 'escritorio: lo importante en la primera pantalla');
+      expect((await admin.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 1, 'sin scroll horizontal');
+      await shot(admin, '67-admin-panel-escritorio', { fullPage: true });
+      await admin.setViewportSize({ width: 390, height: 844 }); await sleep(300);
+      expect((await admin.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 1, 'móvil: sin scroll horizontal');
+    } finally {
+      await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: prev.maxQueuedPerGuest, pauseMode: prev.pauseMode, skipMode: prev.skipMode });
+      await resetUi();
+      await admin.setViewportSize({ width: 1280, height: 900 });
+      await reload();
+      await admin.evaluate(() => scrollTo(0, 0));
+    }
   });
   await step('panel: avisos abajo, agrupados, sin tapar la cabecera y sin perder errores (#29)', async () => {
     const prev = (await api(adminCtx, 'GET', 'admin/status')).body.settings;
@@ -1234,7 +1369,7 @@ async function main() {
   });
   await step('el historial se puede guardar como playlist', async () => {
     await mockCmd('speed', 1);
-    await admin.click('#card-history .builder summary');
+    await openHistory(admin);
     await admin.fill('#card-history .builder input[maxlength="100"]', 'Mi playlist de prueba');
     await admin.waitForSelector('#card-history .pv b');
     await admin.click('#card-history button:has-text("Crear playlist en Spotify")');

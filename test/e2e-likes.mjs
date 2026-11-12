@@ -45,6 +45,13 @@ async function waitFor(fn, { timeout = 5000, interval = 60, msg = 'waitFor' } = 
   throw new Error(`${msg} (timeout ${timeout} ms)${last ? ': ' + last.message : ''}`);
 }
 
+// ---------- panel: historial plegable (#36) ----------
+async function openHistory(page) {
+  const b = page.locator('#card-history .cmp-toggle');
+  if ((await b.getAttribute('aria-expanded')) !== 'true') await b.click();
+  await page.waitForSelector('#card-history .hist-body', { state: 'visible' });
+}
+
 // ---------- servidor ----------
 let server = null; let serverLog = '';
 async function startServer(speed = 1) {
@@ -238,6 +245,7 @@ async function main() {
     await guestAdd(g[2], C);
     await mockCmd('speed', 40);
     await waitFor(async () => (await g[0].textContent('#npTitle')).includes(C.name), { timeout: 12000, msg: 'C no suena' });
+    await openHistory(admin);
     await waitFor(async () => (await admin.locator('#card-history .ah-item').count()) >= 2, { msg: 'historial' });
     const titles = await admin.locator('#card-history .lk').evaluateAll((els) => els.map((e) => e.title));
     expect(titles.includes('2 likes · 0 votos') && titles.includes('1 like · 1 voto'), 'desglose en historial: ' + titles.join(' | '));
@@ -263,7 +271,7 @@ async function main() {
     expect(r.body.count === 1 && r.body.items[0].name === B.name, 'solo B tiene like en cola');
     r = await api(adminCtx, 'POST', 'admin/playlist/preview', { ...base, order: 'likes_desc', likeType: 'play' });
     expect(r.body.items[0].name === A.name, 'A primero por likes sonando');
-    await admin.click('#card-history .builder summary');
+    await openHistory(admin);
     await admin.locator('#card-history .builder .seg button', { hasText: 'Con mínimo de likes y votos' }).click();
     await admin.locator('#card-history .builder .seg button', { hasText: 'Solo likes' }).click();
     expect((await admin.locator('#card-history .builder .seg button', { hasText: 'Solo likes' }).getAttribute('aria-pressed')) === 'true', 'Solo likes seleccionado');
@@ -320,13 +328,13 @@ async function main() {
     await tvCtx.close();
   });
 
-  console.log('\nD. Clásicos y relleno inteligente');
-  await step('al terminar la fiesta se archiva y se crea "Clásicos de fiesta"', async () => {
+  console.log('\nD. Fin de fiesta, archivo y sin clásicos (#36)');
+  await step('al terminar la fiesta se archiva y no se crea ninguna playlist de clásicos', async () => {
     await api(adminCtx, 'POST', 'admin/party/stop', { kickAll: true });
-    await waitFor(async () => (await mockState()).mock.playlists.some((p) => p.name === 'Clásicos de fiesta'), { msg: 'playlist clásicos' });
-    const pl = (await mockState()).mock.playlists.find((p) => p.name === 'Clásicos de fiesta');
-    expect(pl.uris.length === 1 && pl.uris[0] === A.uri, 'solo A llega a 2 puntos: ' + JSON.stringify(pl.uris));
-    await waitFor(async () => (await admin.textContent('#card-classics')).includes(A.name), { msg: 'tarjeta clásicos' });
+    await waitFor(async () => (await api(adminCtx, 'GET', 'admin/history/current')).body?.history?.length > 0, { msg: 'fiesta archivada' });
+    await sleep(800);
+    expect(!(await mockState()).mock.playlists.some((p) => /sicos/.test(p.name)), 'no se crea la playlist de clásicos al terminar');
+    expect(await admin.locator('#card-classics').count() === 0, 'ya no hay tarjeta de clásicos');
     // #24: terminada la fiesta con el resumen puesto: resumen a pantalla completa, sin QR ni PIN
     const tvCtx3 = await newCtx(browser, 'tv'); await tvCtx3.addCookies(await adminCtx.cookies());
     const tv3 = await tvCtx3.newPage(); watch(tv3, 'pantalla-fin');
@@ -341,32 +349,22 @@ async function main() {
       await api(adminCtx, 'POST', 'admin/summary/show', { on: false });
       await tvCtx3.close();
     }
-    expect((await admin.textContent('#card-classics')).includes('2 pts'), 'puntos');
   });
-  await step('actualizar clásicos reutiliza la misma playlist', async () => {
-    await api(adminCtx, 'PUT', 'admin/settings', { classicsMinScore: 1 });
-    const r = await api(adminCtx, 'POST', 'admin/classics/update');
-    expect(r.status === 200 && r.body.count === 2, 'A y B: ' + JSON.stringify(r.body));
-    const pls = (await mockState()).mock.playlists.filter((p) => p.name === 'Clásicos de fiesta');
-    expect(pls.length === 1 && pls[0].uris.length === 2, 'misma playlist con 2');
-    await api(adminCtx, 'POST', `admin/classics/${encodeURIComponent(B.id)}/exclude`, { excluded: true });
-    await waitFor(async () => !(await admin.textContent('#card-classics')).includes(B.name), { msg: 'B quitada' });
-    await waitFor(async () => (await admin.textContent('#card-classics')).includes('1 quitada a mano'));
-    await admin.locator('#card-classics').scrollIntoViewIfNeeded();
-    await shot(admin, 'L6-admin-classics', { fullPage: true });
-    await api(adminCtx, 'POST', 'admin/classics/restore');
-    await api(adminCtx, 'PUT', 'admin/settings', { classicsMinScore: 2 });
-  });
-  await step('nueva fiesta con la cola vacía: suena un clásico', async () => {
+  await step('sin clásicos: rutas fuera y, con la cola vacía, el motor no mete relleno', async () => {
+    for (const [m, u] of [['POST', 'admin/classics/update'], ['POST', 'admin/classics/restore'], ['POST', `admin/classics/${encodeURIComponent(B.id)}/exclude`]]) {
+      const r = await api(adminCtx, m, u);
+      expect(r.status === 404, `${u} debe dar 404: ${r.status}`);
+    }
+    const cfg = (await api(adminCtx, 'GET', 'admin/status')).body.settings;
+    for (const k of ['fillerMode', 'classicsMinScore', 'classicsAutoUpdate']) expect(!(k in cfg), `ajuste ${k} retirado`);
     const r = await api(adminCtx, 'POST', 'admin/party/start', { name: 'Fiesta dos' });
     pin = r.body.party.pin;
-    await mockCmd('speed', 40);
-    await waitFor(async () => { const s = await mockState(); return s.mock.queue.includes(A.name) || s.mock.current === A.name; }, { timeout: 15000, msg: 'el clásico A no entra' });
-    await waitFor(async () => (await mockState()).mock.current === A.name, { timeout: 15000, msg: 'A no suena' });
-    await mockCmd('speed', 1);
+    await sleep(2500);
+    const m = (await mockState()).mock;
+    expect(m.queue.length === 0, 'la cola de Spotify sigue vacía: ' + JSON.stringify(m.queue));
+    expect(!m.current || m.current !== A.name, 'no suena un clásico');
     await guestJoin(g[0], pin, 'Laura'); await g[0].waitForSelector('#view-main:not([hidden])');
-    await waitFor(async () => (await g[0].textContent('#npBy')).includes('Clásico de otras fiestas'), { msg: 'chip clásico' });
-    await shot(g[0], 'L7-guest-classic', { fullPage: false });
+    expect(!(await g[0].textContent('#npBy')).includes('Clásico'), 'sin chip de clásico');
   });
   await step('el admin puede ver la fiesta anterior y su resumen', async () => {
     const parties = await admin.locator('#card-history select.sel option').allTextContents();
@@ -384,7 +382,6 @@ async function main() {
     const over = await admin.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(over <= 1, 'desborde horizontal: ' + over);
     await admin.locator('#card-history').screenshot({ path: path.join(SHOTS, 'L8-admin-history-mobile.png') });
-    await admin.locator('#card-classics').screenshot({ path: path.join(SHOTS, 'L9-admin-classics-mobile.png') });
   });
   await step('sin errores de consola', async () => {
     expect(consoleErrors.length === 0, consoleErrors.slice(0, 5).join(' || '));

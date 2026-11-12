@@ -180,15 +180,11 @@ input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
 .sum-row .k { font-size: 13px; color: var(--muted); font-weight: 500; }
 .sum-row .v { font-weight: 650; }
 .sum-row .m { font-size: 13px; color: var(--pink); }
-.builder { border: 1px solid var(--line); border-radius: 14px; padding: 4px 14px; background: var(--surface-2); }
-.builder > summary { cursor: pointer; font-weight: 650; padding: 11px 0; }
-.builder[open] > summary { margin-bottom: 4px; }
-.builder .stack { padding-bottom: 14px; }
 /* desplegables: chevron propio en vez del triangulo del navegador */
-details.fold > summary, .builder > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-radius: 8px; }
-details.fold > summary::-webkit-details-marker, .builder > summary::-webkit-details-marker { display: none; }
-details.fold > summary::after, .builder > summary::after { content: ""; width: 8px; height: 8px; flex: none; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translate(-2px, -2px); transition: transform 0.25s var(--ease-out); margin-right: 4px; }
-details.fold[open] > summary::after, .builder[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+details.fold > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-radius: 8px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::after { content: ""; width: 8px; height: 8px; flex: none; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translate(-2px, -2px); transition: transform 0.25s var(--ease-out); margin-right: 4px; }
+details.fold[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
 .pv { font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
 .pv-list { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13px; }
 .pv-list li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -203,3 +199,36 @@ body.admin .toast.out { animation-name: toast-down; }
   body.admin #toasts { align-items: flex-end; padding: 0 20px; }
   body.admin .toast { max-width: 380px; }
 }
+
+/* cabeceras con acciones: título y recuento a la izquierda, botones a la derecha */
+.hd-acts { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.acard > header:has(.hd-acts) .sub { margin-right: auto; }
+.acard > header .hd-acts { margin-left: 0; }
+.icon-btn.gear { margin: -4px -6px -4px 0; }
+.icon-btn.gear[aria-expanded="true"] { background: var(--surface-3); color: var(--text); }
+
+/* panel de ajustes dentro de la tarjeta, encima de la lista */
+.set-panel { border: 1px solid var(--line); border-radius: 14px; padding: 4px 14px; background: var(--surface-2); }
+.set-panel > .set:first-child { border-top: 0; }
+.set-panel > .hint { padding: 0 0 12px; margin-top: -4px; }
+.set-panel .set .lab { align-items: center; }
+
+/* tarjetas de conexion: una linea cuando todo va bien */
+.cmp-toggle { margin-left: auto; }
+.cmp-sum { display: block; flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acard.compact { padding-top: 14px; padding-bottom: 14px; }
+.acard.compact > header { margin-bottom: 0; justify-content: flex-start; flex-wrap: nowrap; }
+.acard.compact > header h2 { flex: none; }
+
+/* historial plegable */
+.acard.hist > header { margin-bottom: 0; flex-wrap: wrap; }
+.acard.hist > header .sub { flex: 1 1 auto; min-width: 0; }
+.hist-body { margin-top: 16px; gap: 18px; }
+.hsec { display: flex; flex-direction: column; gap: 12px; }
+.hsec + .hsec { border-top: 1px solid var(--line); padding-top: 18px; }
+.hsec h3 { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+@media (max-width: 640px) {
+  .acard.hist > header .sub { order: 3; flex-basis: 100%; }
+}
+.acard > header .sub, .acard > header .btn, .set .lab output { white-space: nowrap; }
+.acard > header h2 { flex: none; }
