@@ -253,14 +253,15 @@ function renderControls() {
     bl.title = own ? 'Los likes que recibe tu canción' : liked ? 'Quitar me gusta' : 'Me gusta esta canción';
     bl.setAttribute('aria-label', own ? `Likes a tu canción: ${likes}` : `${bl.title} (${likes})`);
   }
-  bp.hidden = !!st.player.isIphone;
-  bp.replaceChildren(icon(s.pauseMode === 'admin' ? 'lock' : playing ? 'pause' : 'play'), el('span', { class: 'lbl', text: playing ? 'Pausa' : 'Seguir' }));
-  bp.disabled = busy || s.pauseMode === 'admin' || !np || controlsDown;
-  bp.classList.toggle('primary', !playing && s.pauseMode !== 'admin' && !!np);
-  bp.classList.toggle('subtle', playing || s.pauseMode === 'admin');
-  bp.title = s.pauseMode === 'admin' ? 'Solo el anfitrión puede pausar' : '';
+  // sin boton de pausa si solo pausa el anfitrion (o si el iPhone no deja pausar desde aqui)
+  bp.hidden = !!st.player.isIphone || s.pauseMode === 'admin';
+  bp.replaceChildren(icon(playing ? 'pause' : 'play'), el('span', { class: 'lbl', text: playing ? 'Pausa' : 'Seguir' }));
+  bp.disabled = busy || !np || controlsDown;
+  bp.classList.toggle('primary', !playing && !!np);
+  bp.classList.toggle('subtle', playing);
 
   bs.hidden = s.skipMode === 'admin';
+  $('controls').hidden = bp.hidden && bs.hidden;
   bs.classList.remove('voted');
   if (s.skipMode === 'vote') {
     const voted = st.me.skipVoted;
@@ -274,10 +275,8 @@ function renderControls() {
   }
   const note = $('ctrlNote');
   const needCd = cd > 0 && (s.pauseMode === 'direct' || s.skipMode === 'direct');
-  const pauseLocked = s.pauseMode === 'admin' && !st.player.isIphone;
-  note.hidden = !needCd && !pauseLocked;
+  note.hidden = !needCd;
   if (needCd) setText(note, `Espera ${cd} s para volver a usar los controles`);
-  else if (pauseLocked) setText(note, 'La pausa la controla el anfitrión');
   if (needCd) { bp.disabled = bp.disabled || (s.pauseMode === 'direct' && cd > 0); }
 }
 

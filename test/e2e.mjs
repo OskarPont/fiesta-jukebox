@@ -756,10 +756,19 @@ async function main() {
     const r2 = await api(gctx[1], 'POST', 'control/skip');
     expect(r2.status === 200, 'otro invitado si puede: ' + JSON.stringify(r2));
   });
-  await step('modo solo anfitrion: saltar oculto y pausa bloqueada', async () => {
+  await step('modo solo anfitrion: pausa y saltar ocultos, sin hueco; con pausa directa el boton vuelve', async () => {
+    await api(adminCtx, 'PUT', 'admin/settings', { skipMode: 'vote', pauseMode: 'admin' });
+    await waitFor(async () => g[0].locator('#btnPause').isHidden());
+    expect(await g[0].locator('#btnSkip').isVisible(), 'saltar sigue visible con la pausa en modo anfitrion');
+    const w = await g[0].evaluate(() => { const c = document.getElementById('controls').getBoundingClientRect(); const b = document.getElementById('btnSkip').getBoundingClientRect(); return [c.width, b.width]; });
+    expect(Math.abs(w[0] - w[1]) < 2, 'saltar ocupa todo el ancho: ' + w);
+    expect(!(await g[0].textContent('#ctrlNote')).includes('anfitri'), 'sin nota del anfitrion');
+    await api(adminCtx, 'PUT', 'admin/settings', { pauseMode: 'direct' });
+    await waitFor(async () => g[0].locator('#btnPause').isVisible(), { msg: 'pausa directa muestra el boton' });
     await api(adminCtx, 'PUT', 'admin/settings', { skipMode: 'admin', pauseMode: 'admin' });
     await waitFor(async () => g[0].locator('#btnSkip').isHidden());
-    expect(await g[0].locator('#btnPause').isDisabled(), 'pausa deshabilitada');
+    expect(await g[0].locator('#btnPause').isHidden(), 'pausa oculta');
+    expect(await g[0].locator('#controls').isHidden(), 'fila de controles oculta, sin hueco');
     const r = await api(gctx[0], 'POST', 'control/pause');
     expect(r.status === 403 && r.body.error === 'admin_only', 'pausa 403');
     const r2 = await api(gctx[0], 'POST', 'control/skip');
