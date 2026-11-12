@@ -98,7 +98,11 @@
       <p id="quota" class="quota"></p>
 
       <section class="queue-sec" aria-label="Cola">
-        <div class="sec-head"><h3>Cola</h3><span id="queueCount" class="chip">0</span></div>
+        <div class="sec-head"><h3>Cola</h3><span id="queueCount" class="chip">0</span><button id="helpBtn" class="icon-btn help-btn" type="button" aria-label="Cómo funciona" aria-expanded="false" aria-controls="helpCard">?</button></div>
+        <div id="helpCard" class="help-card" role="region" aria-labelledby="helpTitle" hidden>
+          <div class="help-head"><h4 id="helpTitle">Cómo funciona</h4><button id="helpClose" class="icon-btn" type="button" aria-label="Cerrar la ayuda">✕</button></div>
+          <ul id="helpList" class="help-list"></ul>
+        </div>
         <ul id="queue" class="queue"></ul>
         <div id="queueEmpty" class="empty" hidden>
           <span id="emptyIco"></span>

@@ -1475,6 +1475,55 @@ async function main() {
     const r4 = await fetch(`${BASE}/api/admin/qr.svg`);
     expect(r4.status === 401, 'qr protegido');
   });
+  await step('invitado: tarjeta «Cómo funciona» con las cifras reales, se cierra, se recuerda y se reabre (#37)', async () => {
+    const prev = (await api(adminCtx, 'GET', 'admin/status')).body.settings;
+    const pg = g[0];
+    const card = pg.locator('#helpCard'); const btn = pg.locator('#helpBtn');
+    const text = () => card.innerText();
+    const reloadMain = async () => { await pg.reload(); await pg.waitForSelector('#view-main:not([hidden])'); };
+    try {
+      await api(adminCtx, 'PUT', 'admin/settings', { skipMode: 'vote', pauseMode: 'direct', ordering: 'votes', maxQueuedPerGuest: 3 });
+      await pg.evaluate(() => localStorage.clear());
+      await reloadMain();
+      await card.waitFor({ state: 'visible' });
+      const need = (await api(adminCtx, 'GET', 'admin/status')).body.skipNeeded;
+      const t = await text();
+      expect(t.includes(`${need === 1 ? 'hace' : 'hacen'} falta ${need} ${need === 1 ? 'voto' : 'votos'}`), 'N de votos: ' + need + ' · ' + t);
+      expect(t.includes('3 canciones'), 'cupo: ' + t);
+      expect(t.includes('↑ Vota una canción') && t.includes('pausar'), 'votar y pausa: ' + t);
+      expect(await btn.getAttribute('aria-expanded') === 'true', 'aria-expanded abierto');
+      const fs = await card.locator('li').first().evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
+      expect(fs >= 13, 'texto legible: ' + fs);
+      await shot(pg, '68-guest-ayuda', { fullPage: true });
+
+      // las cifras siguen a los ajustes
+      await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: 1 });
+      await waitFor(async () => (await text()).includes('1 canción a la vez'), { msg: 'cupo no se actualiza: ' + await text() });
+      expect(!(await text()).includes('1 canciones'), 'singular');
+
+      // solo lo que aplica
+      await api(adminCtx, 'PUT', 'admin/settings', { skipMode: 'admin', pauseMode: 'admin' });
+      await waitFor(async () => { const x = await text(); return !x.includes('Saltar') && !x.includes('saltar') && !x.includes('pausar'); }, { msg: 'líneas que no aplican: ' + await text() });
+      await api(adminCtx, 'PUT', 'admin/settings', { skipMode: 'direct' });
+      await waitFor(async () => (await text()).includes('Cualquiera puede saltar'), { msg: 'saltar directo' });
+
+      // cerrar: foco al «?» y se recuerda
+      await pg.locator('#helpClose').click();
+      expect(await card.isHidden(), 'cerrada');
+      expect(await pg.evaluate(() => document.activeElement?.id) === 'helpBtn', 'foco en «?»');
+      expect(await btn.getAttribute('aria-expanded') === 'false', 'aria-expanded cerrado');
+      await reloadMain();
+      expect(await card.isHidden(), 'sigue cerrada tras recargar');
+
+      // reabrir
+      await btn.click();
+      expect(await card.isVisible() && await btn.getAttribute('aria-expanded') === 'true', 'reabierta con «?»');
+      await btn.click();
+      expect(await card.isHidden(), '«?» la cierra');
+    } finally {
+      await api(adminCtx, 'PUT', 'admin/settings', { skipMode: prev.skipMode, pauseMode: prev.pauseMode, ordering: prev.ordering, maxQueuedPerGuest: prev.maxQueuedPerGuest });
+    }
+  });
   await step('avisos: 20 entradas seguidas y el invitado no ve ningún «se ha unido» (#2)', async () => {
     await watchToasts(g[0]);
     // otra IP (via proxy local de confianza) para no chocar con el limite por IP del paso del PIN
