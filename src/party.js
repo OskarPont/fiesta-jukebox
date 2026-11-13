@@ -216,6 +216,15 @@ export class Party {
     this.dirty();
     return f.guest;
   }
+  /** Quita el baneo (#48): puede volver a entrar con su sesión o con el PIN. Sus canciones quitadas no vuelven. */
+  unban(id) {
+    const f = this.guestById(id);
+    if (!f) throw new PartyError(404, 'not_found', 'Invitado no encontrado.');
+    if (!f.guest.banned) throw new PartyError(409, 'not_banned', 'Ese invitado no está baneado.');
+    f.guest.banned = false;
+    this.dirty();
+    return f.guest;
+  }
   ban(id) {
     const f = this.guestById(id);
     if (!f) throw new PartyError(404, 'not_found', 'Invitado no encontrado.');

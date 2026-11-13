@@ -382,3 +382,17 @@ test('deshacer «Vaciar cola»: falla sin vaciado previo o a los 30 s y no dupli
   assert.equal(party.restoreCleared(), 0);
   assert.equal(party.s.queue.filter((q) => q.qid === i1.qid).length, 1);
 });
+
+test('desbanear: el invitado puede volver a entrar; solo si estaba baneado (#48)', () => {
+  const { party, join } = mk();
+  const a = join('Ana');
+  const tok = Object.entries(party.s.guests).find(([, g]) => g === a)[0];
+  party.ban(a.id);
+  throwsCode(() => party.join({ pin: party.s.party.pin, name: 'Ana', token: tok }), 'banned');
+  party.unban(a.id);
+  assert.equal(party.isBanned(tok), false);
+  const r = party.join({ pin: party.s.party.pin, name: 'Ana', token: tok });
+  assert.equal(r.guest.id, a.id);
+  throwsCode(() => party.unban(a.id), 'not_banned');
+  throwsCode(() => party.unban('nadie'), 'not_found');
+});

@@ -1480,6 +1480,28 @@ async function main() {
     }
     await waitFor(async () => (await admin.locator('#card-guests .ag-item .nm', { hasText: /Íñigo|Zeta/ }).count()) === 0, { msg: 'extras expulsados' });
   });
+  await step('admin: desbanear desde el menú y el invitado puede volver a entrar (#48)', async () => {
+    const row = admin.locator('#card-guests .ag-item', { hasText: 'Marc' });
+    await row.locator('summary').click();
+    const item = row.locator('button[role=menuitem]');
+    expect((await item.count()) === 1 && (await item.textContent()).includes('Desbanear'), 'el baneado solo tiene «Desbanear»');
+    await item.click();
+    await row.locator('button', { hasText: '¿Desbanear?' }).click();
+    await waitFor(async () => (await admin.locator('#card-guests .ag-item', { hasText: 'Baneado' }).count()) === 0, { msg: 'Marc sigue como baneado' });
+    expect((await seenToasts(admin)).some((t) => t.includes('Invitado desbaneado')) || (await admin.locator('#toasts .toast', { hasText: 'desbaneado' }).count()) > 0, 'aviso de desbaneo');
+    // vuelve a entrar con su sesión
+    await g[1].reload();
+    await g[1].waitForSelector('#view-main:not([hidden]), #view-join:not([hidden])');
+    if (await g[1].locator('#view-join').isVisible()) {
+      await g[1].fill('#pin', pin); await g[1].fill('#name', 'Marc'); await g[1].click('#joinBtn');
+    }
+    await g[1].waitForSelector('#view-main:not([hidden])', { timeout: 5000 });
+    expect((await api(gctx[1], 'GET', 'me')).status === 200, 'Marc vuelve a tener sesión');
+    // se deja como estaba para los pasos siguientes
+    const marc = (await api(adminCtx, 'GET', 'admin/status')).body.guests.find((x) => x.name === 'Marc');
+    await api(adminCtx, 'POST', `admin/guests/${encodeURIComponent(marc.id)}/ban`);
+    await waitFor(async () => (await admin.locator('#card-guests .ag-item', { hasText: 'Baneado' }).count()) === 1);
+  });
   await step('admin: nuevo PIN mantiene a los invitados; con expulsar los saca', async () => {
     const old = pin;
     await api(adminCtx, 'POST', 'admin/party/pin', { kickAll: false });
