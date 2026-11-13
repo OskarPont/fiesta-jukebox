@@ -12,6 +12,21 @@ body { min-height: 100dvh; }
 .top-chips { display: flex; gap: 6px 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
 .top-actions { display: flex; gap: 8px; margin-left: auto; }
 .pin-jump { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+/* ayuda de atajos: solo con teclado, en tactil no se ofrece */
+@media (hover: none) and (pointer: coarse), (max-width: 640px) { .keys-btn { display: none; } }
+.keys-dlg { border: 1px solid var(--line-strong); border-radius: 22px; background: var(--surface); color: var(--text); width: min(calc(100vw - 32px), 400px); padding: 0; box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.85); }
+.keys-dlg[open] { animation: keys-rise 0.3s var(--ease-out) both; }
+@keyframes keys-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.keys-dlg::backdrop { background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(4px); }
+.keys-wrap { display: flex; flex-direction: column; gap: 16px; padding: 20px 22px 22px; }
+.keys-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.keys-title { font-family: var(--font-display); font-size: 19px; font-weight: 700; letter-spacing: -0.018em; line-height: 1.2; margin: 0; }
+.keys-list { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.keys-row { display: grid; grid-template-columns: 104px 1fr; gap: 14px; align-items: center; }
+.keys-row dt { display: flex; gap: 6px; flex-wrap: wrap; }
+.keys-row dd { margin: 0; font-size: 15px; color: var(--text-2); }
+.keys-dlg kbd { display: inline-block; min-width: 28px; padding: 3px 8px; border-radius: 8px; border: 1px solid var(--line-strong); border-bottom-width: 2px; background: var(--surface-2); color: var(--text); font-family: var(--font); font-size: 13px; font-weight: 600; line-height: 1.3; text-align: center; }
+.keys-note { margin: 0; font-size: 14px; color: var(--muted); }
 /* movil: logo y acciones en una fila, la linea de estado debajo; las acciones se quedan en icono */
 @media (max-width: 640px) {
   .a-top { gap: 8px 10px; }

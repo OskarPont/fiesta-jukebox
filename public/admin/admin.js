@@ -20,6 +20,40 @@ $('pinJump').addEventListener('click', () => {
   target.focus({ preventScroll: true });
 });
 
+// ---------- atajos de teclado ----------
+const keysDlg = $('keysDlg');
+setIcon($('keysBtn'), 'keyboard'); $('keysBtn').append(el('span', { class: 'lbl', text: 'Atajos' }));
+$('keysBtn').addEventListener('click', () => { if (!keysDlg.open) keysDlg.showModal(); });
+$('keysClose').addEventListener('click', () => keysDlg.close());
+keysDlg.addEventListener('click', (e) => { if (e.target === keysDlg) keysDlg.close(); });
+function jumpTo(target, focusSel) {
+  const inner = focusSel && target.querySelector(focusSel);
+  const to = inner && !inner.hidden && inner.offsetParent !== null ? inner : target;
+  target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  to.focus({ preventScroll: true });
+}
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.defaultPrevented) return;
+  if ($('dash').hidden) return;
+  if (e.key === '?' && keysDlg.open) { e.preventDefault(); keysDlg.close(); return; }
+  if (document.querySelector('dialog[open]')) return;
+  const tgt = e.target instanceof Element ? e.target : document.body;
+  if (tgt.closest('input, textarea, select, [contenteditable], .grip')) return;
+  // misma accion que el boton: se pulsa el boton, con sus rutas y avisos
+  const click = (sel) => { const b = document.querySelector(sel); if (b && !b.disabled && b.offsetParent !== null) b.click(); };
+  switch (e.key) {
+    case ' ':
+      if (tgt.closest('button, a, summary')) return;   // la activacion nativa sigue funcionando
+      e.preventDefault(); click('#card-player .btns button:first-child'); break;
+    case 'ArrowRight': case 'n': case 'N': e.preventDefault(); click('#card-player .btns button:nth-child(2)'); break;
+    case 'p': case 'P': e.preventDefault(); jumpTo(cards.party.root); break;
+    case 'c': case 'C': e.preventDefault(); jumpTo(cards.queue.root); break;
+    case 'i': case 'I': e.preventDefault(); jumpTo(cards.guests.root, 'input[type=search]'); break;
+    case '?': e.preventDefault(); keysDlg.showModal(); break;
+    default:
+  }
+});
+
 // ---------- helpers de UI ----------
 function run(btn, fn, { okMsg } = {}) {
   return async (ev) => {
@@ -1085,6 +1119,7 @@ function onServerToast(t) {
   } else {
     addGroup = { el: toast(t.text, 'info', 2800), names: new Set([who]), n: 1 };
   }
+  addGroup.el.setAttribute('aria-hidden', 'true');   // altas: sin ruido para lectores de pantalla
 }
 
 async function start() {
