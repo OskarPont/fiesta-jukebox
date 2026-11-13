@@ -3,14 +3,14 @@
 Los invitados escanean un QR, ponen el PIN y su nombre, y controlan la música de tu cuenta de Spotify Premium: buscar, añadir a la cola, votar, dar like a lo que suena, pausar y saltar. Sin app ni cuenta para los invitados.
 
 - **Invitados:** `/fiesta/` · **Panel del anfitrión:** `/fiesta/admin/` · **Pantalla (TV/proyector):** `/fiesta/pantalla/`
-- Node 22 + Fastify, frontend sin build, tiempo real con SSE, estado en JSON (`data/`). Sin base de datos.
+- Node 26 (LTS) + Fastify, frontend sin build, tiempo real con SSE, estado en JSON (`data/`). Sin base de datos.
 - Cola con votos, cupos y tiempos de espera por invitado, saltar por votación, «Clásicos de fiesta» (playlist automática con lo que más gustó), resumen de la noche y guardado como playlist.
 
 ## Requisitos
 
 - Una cuenta de **Spotify Premium** (Spotify no deja controlar la reproducción sin Premium).
 - Un servidor con **Docker** y un dominio con **HTTPS** delante (Caddy, Nginx, Traefik…).
-- Para probar en local basta con Node 22: hay un modo con Spotify simulado.
+- Para probar en local basta con Node 26 (la LTS actual): hay un modo con Spotify simulado.
 
 ## Probar en local (sin Spotify)
 
