@@ -94,6 +94,8 @@ async function newCtx(browser, kind) {
       : kind === 'laptop' ? { viewport: { width: 1366, height: 768 } }
         : { viewport: { width: 1280, height: 900 } };
   const ctx = await browser.newContext({ ...opts, locale: 'es-ES', baseURL: BASE + '/' });
+  // la ayuda «Cómo funciona» se abre sola la primera vez: marcarla como vista (una vez por pestaña) para que no tape los pasos
+  await ctx.addInitScript(() => { try { if (!sessionStorage.getItem('__t')) { sessionStorage.setItem('__t', '1'); localStorage.setItem('fiesta.help.seen', '1'); } } catch { /* sin almacenamiento */ } });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   return ctx;
 }
@@ -756,10 +758,19 @@ async function main() {
     const r2 = await api(gctx[1], 'POST', 'control/skip');
     expect(r2.status === 200, 'otro invitado si puede: ' + JSON.stringify(r2));
   });
-  await step('modo solo anfitrion: saltar oculto y pausa bloqueada', async () => {
+  await step('modo solo anfitrion: pausa y saltar ocultos, sin hueco; con pausa directa el boton vuelve', async () => {
+    await api(adminCtx, 'PUT', 'admin/settings', { skipMode: 'vote', pauseMode: 'admin' });
+    await waitFor(async () => g[0].locator('#btnPause').isHidden());
+    expect(await g[0].locator('#btnSkip').isVisible(), 'saltar sigue visible con la pausa en modo anfitrion');
+    const w = await g[0].evaluate(() => { const c = document.getElementById('controls').getBoundingClientRect(); const b = document.getElementById('btnSkip').getBoundingClientRect(); return [c.width, b.width]; });
+    expect(Math.abs(w[0] - w[1]) < 2, 'saltar ocupa todo el ancho: ' + w);
+    expect(!(await g[0].textContent('#ctrlNote')).includes('anfitri'), 'sin nota del anfitrion');
+    await api(adminCtx, 'PUT', 'admin/settings', { pauseMode: 'direct' });
+    await waitFor(async () => g[0].locator('#btnPause').isVisible(), { msg: 'pausa directa muestra el boton' });
     await api(adminCtx, 'PUT', 'admin/settings', { skipMode: 'admin', pauseMode: 'admin' });
     await waitFor(async () => g[0].locator('#btnSkip').isHidden());
-    expect(await g[0].locator('#btnPause').isDisabled(), 'pausa deshabilitada');
+    expect(await g[0].locator('#btnPause').isHidden(), 'pausa oculta');
+    expect(await g[0].locator('#controls').isHidden(), 'fila de controles oculta, sin hueco');
     const r = await api(gctx[0], 'POST', 'control/pause');
     expect(r.status === 403 && r.body.error === 'admin_only', 'pausa 403');
     const r2 = await api(gctx[0], 'POST', 'control/skip');
@@ -1490,51 +1501,66 @@ async function main() {
     const r4 = await fetch(`${BASE}/api/admin/qr.svg`);
     expect(r4.status === 401, 'qr protegido');
   });
-  await step('invitado: tarjeta «Cómo funciona» con las cifras reales, se cierra, se recuerda y se reabre (#37)', async () => {
+  await step('invitado: panel «Cómo funciona» en la cabecera con las cifras reales, se abre solo una vez (#37)', async () => {
     const prev = (await api(adminCtx, 'GET', 'admin/status')).body.settings;
     const pg = g[0];
-    const card = pg.locator('#helpCard'); const btn = pg.locator('#helpBtn');
-    const text = () => card.innerText();
+    const dlg = pg.locator('#helpDlg'); const btn = pg.locator('#helpBtn');
+    const text = () => dlg.innerText();
+    const focusId = () => pg.evaluate(() => document.activeElement?.id);
     const reloadMain = async () => { await pg.reload(); await pg.waitForSelector('#view-main:not([hidden])'); };
     try {
       await api(adminCtx, 'PUT', 'admin/settings', { skipMode: 'vote', pauseMode: 'direct', ordering: 'votes', maxQueuedPerGuest: 3 });
       await pg.evaluate(() => localStorage.clear());
       await reloadMain();
-      await card.waitFor({ state: 'visible' });
+      await dlg.waitFor({ state: 'visible' });
+      expect(await pg.evaluate(() => document.getElementById('helpDlg').matches(':modal')), 'abierto como modal');
+      const bb = await btn.boundingBox();
+      expect(bb.width >= 44 && bb.height >= 44, 'boton de la cabecera >= 44px: ' + JSON.stringify(bb));
+      expect(await btn.getAttribute('aria-label') === 'Cómo funciona' && await btn.getAttribute('aria-haspopup') === 'dialog', 'atributos del boton');
+      expect(await dlg.getAttribute('aria-labelledby') === 'helpTitle', 'aria-labelledby');
       const need = (await api(adminCtx, 'GET', 'admin/status')).body.skipNeeded;
       const t = await text();
-      expect(t.includes(`${need === 1 ? 'hace' : 'hacen'} falta ${need} ${need === 1 ? 'voto' : 'votos'}`), 'N de votos: ' + need + ' · ' + t);
-      expect(t.includes('3 canciones'), 'cupo: ' + t);
-      expect(t.includes('↑ Vota una canción') && t.includes('pausar'), 'votar y pausa: ' + t);
-      expect(await btn.getAttribute('aria-expanded') === 'true', 'aria-expanded abierto');
-      const fs = await card.locator('li').first().evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
-      expect(fs >= 13, 'texto legible: ' + fs);
-      await shot(pg, '68-guest-ayuda', { fullPage: true });
+      expect(t.includes(`Con ${need} ${need === 1 ? 'voto' : 'votos'} se pasa a la siguiente`), 'N de votos: ' + need + ' · ' + t);
+      expect(t.includes('Hasta 3 a la vez en la cola'), 'cupo: ' + t);
+      expect(t.includes('Vota con la flecha') && t.includes('Pausa si hace falta') && t.includes('Dale like'), 'filas: ' + t);
+      const fs = await dlg.locator('.help-t').first().evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
+      expect(fs === 15, 'titulo de fila 15px: ' + fs);
+      await shot(pg, '68-guest-ayuda', { fullPage: false });
 
-      // las cifras siguen a los ajustes
+      // las cifras siguen a los ajustes (con el panel abierto)
       await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: 1 });
-      await waitFor(async () => (await text()).includes('1 canción a la vez'), { msg: 'cupo no se actualiza: ' + await text() });
-      expect(!(await text()).includes('1 canciones'), 'singular');
+      await waitFor(async () => (await text()).includes('Hasta 1 a la vez'), { msg: 'cupo no se actualiza: ' + await text() });
+      await api(adminCtx, 'PUT', 'admin/settings', { ordering: 'fifo', skipMode: 'direct' });
+      await waitFor(async () => { const x = await text(); return x.includes('La cola va por orden') && x.includes('Salta cuando quieras') && !x.includes('Vota con la flecha'); }, { msg: 'orden y salto directo: ' + await text() });
 
       // solo lo que aplica
       await api(adminCtx, 'PUT', 'admin/settings', { skipMode: 'admin', pauseMode: 'admin' });
-      await waitFor(async () => { const x = await text(); return !x.includes('Saltar') && !x.includes('saltar') && !x.includes('pausar'); }, { msg: 'líneas que no aplican: ' + await text() });
-      await api(adminCtx, 'PUT', 'admin/settings', { skipMode: 'direct' });
-      await waitFor(async () => (await text()).includes('Cualquiera puede saltar'), { msg: 'saltar directo' });
+      await waitFor(async () => { const x = await text(); return !x.includes('Salta') && !x.includes('Pausa si hace falta'); }, { msg: 'filas que no aplican: ' + await text() });
+      await api(adminCtx, 'PUT', 'admin/settings', { skipMode: 'vote', pauseMode: 'direct', ordering: 'votes' });
+      await waitFor(async () => (await text()).includes('Salta entre todos'), { msg: 'salto por voto' });
 
-      // cerrar: foco al «?» y se recuerda
-      await pg.locator('#helpClose').click();
-      expect(await card.isHidden(), 'cerrada');
-      expect(await pg.evaluate(() => document.activeElement?.id) === 'helpBtn', 'foco en «?»');
-      expect(await btn.getAttribute('aria-expanded') === 'false', 'aria-expanded cerrado');
+      // Entendido: cierra y el foco vuelve al boton de la cabecera
+      await pg.locator('#helpOk').click();
+      expect(await dlg.isHidden(), 'cerrado');
+      await waitFor(async () => (await focusId()) === 'helpBtn', { msg: 'foco en el boton de ayuda tras Entendido' });
+      expect(await pg.evaluate(() => localStorage.getItem('fiesta.help.seen') === '1'), 'se recuerda');
       await reloadMain();
-      expect(await card.isHidden(), 'sigue cerrada tras recargar');
+      await sleep(400);
+      expect(await dlg.isHidden(), 'no se reabre al recargar');
 
-      // reabrir
+      // reabrir con el boton; Escape cierra
       await btn.click();
-      expect(await card.isVisible() && await btn.getAttribute('aria-expanded') === 'true', 'reabierta con «?»');
+      await dlg.waitFor({ state: 'visible' });
+      await pg.keyboard.press('Escape');
+      await dlg.waitFor({ state: 'hidden' });
+      await waitFor(async () => (await focusId()) === 'helpBtn', { msg: 'foco en el boton tras Escape' });
+      // cruz y fondo
       await btn.click();
-      expect(await card.isHidden(), '«?» la cierra');
+      await pg.locator('#helpClose').click();
+      expect(await dlg.isHidden(), 'cierra con la cruz');
+      await btn.click();
+      await pg.mouse.click(4, 4);
+      expect(await dlg.isHidden(), 'cierra con el fondo');
     } finally {
       await api(adminCtx, 'PUT', 'admin/settings', { skipMode: prev.skipMode, pauseMode: prev.pauseMode, ordering: prev.ordering, maxQueuedPerGuest: prev.maxQueuedPerGuest });
     }
