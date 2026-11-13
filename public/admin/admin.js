@@ -713,15 +713,18 @@ cards.guests = (() => {
       closeMenus(null, false);
       toast(msg, 'ok', 1800);
     };
-    const kick = confirmButton('Expulsar', { cls: 'btn-sm', ico: 'logout', ask: '¿Seguro?', onclick: act('kick', 'Invitado expulsado') });
-    const ban = confirmButton('Banear', { cls: 'btn-sm btn-danger', ico: 'ban', ask: '¿Banear?', onclick: act('ban', 'Invitado baneado') });
-    kick.setAttribute('role', 'menuitem'); ban.setAttribute('role', 'menuitem');
+    // baneado: solo «Desbanear» (#48); el resto: expulsar y banear
+    const items = g.banned
+      ? [confirmButton('Desbanear', { cls: 'btn-sm', ico: 'check', ask: '¿Desbanear?', onclick: act('unban', 'Invitado desbaneado') })]
+      : [confirmButton('Expulsar', { cls: 'btn-sm', ico: 'logout', ask: '¿Seguro?', onclick: act('kick', 'Invitado expulsado') }),
+        confirmButton('Banear', { cls: 'btn-sm btn-danger', ico: 'ban', ask: '¿Banear?', onclick: act('ban', 'Invitado baneado') })];
+    for (const b of items) b.setAttribute('role', 'menuitem');
     const sum = el('summary', { class: 'btn btn-sm btn-ghost icon-only', 'aria-label': `Acciones para ${g.name}`, text: '⋯' });
-    const d = el('details', { class: 'row-menu' }, sum, el('div', { class: 'menu', role: 'menu' }, kick, ban));
+    const d = el('details', { class: 'row-menu' }, sum, el('div', { class: 'menu', role: 'menu' }, ...items));
     d.addEventListener('toggle', () => {
       if (!d.open) return;
       closeMenus(d, false);
-      kick.focus();
+      items[0].focus();
     });
     return d;
   }
@@ -734,8 +737,8 @@ cards.guests = (() => {
     const btns = li.querySelector('.ag-btns');
     if (btns.dataset.k !== k) {
       btns.dataset.k = k; btns.replaceChildren();
-      if (!g.banned) btns.append(menuFor(li, g));
-    } else if (!g.banned) {
+      btns.append(menuFor(li, g));
+    } else {
       btns.querySelector('summary').setAttribute('aria-label', `Acciones para ${g.name}`);
     }
   }

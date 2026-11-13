@@ -403,6 +403,7 @@ export async function createApp(cfg = config, { logger = false } = {}) {
         changed();
         return { ok: true };
       });
+      adm.post('/guests/:id/unban', async (req) => { party.unban(req.params.id); changed(); return { ok: true }; });
 
       // ----- historial, playlists y resumen -----
       function historyFor(partyId) {
