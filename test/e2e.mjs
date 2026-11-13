@@ -1202,6 +1202,150 @@ async function main() {
     await waitFor(async () => (await admin.locator('#card-queue .aq-item').count()) === 3, { msg: 'la cola vuelve a sus 3 canciones' });
     await cleared();
   });
+  await step('panel: atajos de teclado, ayuda con «?» y avisos de altas sin ruido (#38)', async () => {
+    const prev = (await api(adminCtx, 'GET', 'admin/status')).body.settings;
+    const vp = admin.viewportSize();
+    const extra = [];
+    let wasPlaying = true;
+    const active = () => admin.evaluate(() => document.activeElement?.id || document.activeElement?.tagName.toLowerCase());
+    const toBody = () => admin.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+    const playing = async () => (await mockState()).mock.playing;
+    const dlgOpen = () => admin.evaluate(() => document.getElementById('keysDlg').open);
+    const toastsAria = () => admin.evaluate(() => [...document.querySelectorAll('#toasts .toast')].map((t) => ({ text: t.textContent, kind: t.className, hidden: t.getAttribute('aria-hidden') })));
+    const pausaBtn = async () => (await admin.locator('#card-player button', { hasText: 'Pausa' }).count()) > 0;
+    try {
+      await admin.setViewportSize({ width: 1440, height: 900 }); await sleep(400);
+      // pasos anteriores dejan la música en pausa (el del motor, el siguiente, parte de ahí): se anota para devolverla igual
+      wasPlaying = await playing();
+      if (!wasPlaying) {
+        await admin.locator('#card-player button', { hasText: 'Seguir' }).click();
+      }
+      await waitFor(playing, { timeout: 10000, msg: 'el mock no suena antes de los atajos' });
+      await waitFor(pausaBtn, { msg: 'el panel no muestra «Pausa»' });
+      // el botón de la cabecera anuncia el atajo y es visible en escritorio
+      expect((await admin.locator('#keysBtn').getAttribute('aria-keyshortcuts')) === '?' && await admin.locator('#keysBtn').isVisible(), 'botón «Atajos» visible con aria-keyshortcuts');
+      // ---- Espacio con el foco en el body: pausa y reanuda ----
+      await toBody();
+      await admin.keyboard.press('Space');
+      await waitFor(async () => !(await playing()), { msg: 'Espacio no pausa' });
+      await waitFor(async () => (await admin.locator('#card-player button', { hasText: 'Seguir' }).count()) > 0, { msg: 'el panel no muestra «Seguir»' });
+      await toBody();
+      await admin.keyboard.press('Space');
+      await waitFor(playing, { msg: 'Espacio no reanuda' });
+      await waitFor(pausaBtn, { msg: 'el panel vuelve a «Pausa»' });
+      // ---- P, C e I llevan el foco a su tarjeta ----
+      await toBody(); await admin.keyboard.press('p');
+      expect((await active()) === 'card-party', 'P enfoca la tarjeta Fiesta: ' + await active());
+      await toBody(); await admin.keyboard.press('c');
+      expect((await active()) === 'card-queue', 'C enfoca la cola: ' + await active());
+      await toBody(); await admin.keyboard.press('Shift+C');
+      expect((await active()) === 'card-queue', 'Mayús+C también');
+      await toBody(); await admin.keyboard.press('i');
+      expect(await admin.evaluate(() => document.activeElement?.closest('#card-guests') !== null), 'I enfoca invitados: ' + await active());
+      // ---- dentro de un campo no se dispara nada ----
+      await admin.evaluate(() => { const i = document.createElement('input'); i.id = 'tmpField'; i.setAttribute('aria-label', 'prueba'); document.body.prepend(i); });
+      const f = admin.locator('#tmpField');
+      await f.focus();
+      await admin.keyboard.type('pc ');
+      expect(await f.evaluate((n) => n === document.activeElement), 'el foco sigue en el campo');
+      expect((await f.inputValue()) === 'pc ', 'el campo recibe lo escrito: ' + await f.inputValue());
+      expect(await playing(), 'Espacio dentro de un campo no pausa');
+      await f.evaluate((n) => n.remove());
+      // ---- modificadores: Ctrl/Cmd/Alt + tecla no hacen nada ----
+      await toBody();
+      const mod = await admin.evaluate(() => {
+        const out = [];
+        for (const init of [{ ctrlKey: true }, { metaKey: true }, { altKey: true }]) {
+          const ev = new KeyboardEvent('keydown', { key: 'p', bubbles: true, cancelable: true, ...init });
+          document.dispatchEvent(ev);
+          out.push({ prevented: ev.defaultPrevented, active: document.activeElement?.id || '' });
+        }
+        return out;
+      });
+      expect(mod.every((m) => !m.prevented && m.active !== 'card-party'), 'los modificadores no disparan atajos: ' + JSON.stringify(mod));
+      // ---- ayuda con «?» ----
+      await toBody();
+      await admin.keyboard.press('Shift+Slash');
+      await waitFor(dlgOpen, { msg: '«?» no abre la ayuda' });
+      expect(((await admin.locator('#keysDlg h2').textContent()) || '').includes('Atajos de teclado'), 'título de la ayuda');
+      expect((await admin.locator('#keysDlg kbd').count()) >= 6, 'la ayuda lista las teclas');
+      expect((await admin.locator('#keysDlg').getAttribute('aria-labelledby')) === 'keysTitle', 'diálogo etiquetado');
+      await sleep(400);
+      await shot(admin, '69-admin-atajos', { fullPage: false });
+      // con el diálogo abierto, el resto de atajos no actúa
+      await admin.keyboard.press('c');
+      expect((await active()) !== 'card-queue', 'con la ayuda abierta C no actúa');
+      await admin.keyboard.press('Escape');
+      await waitFor(async () => !(await dlgOpen()), { msg: 'Escape no cierra la ayuda' });
+      // «?» también la cierra, y el botón de la cabecera la abre
+      await toBody();
+      await admin.keyboard.press('Shift+Slash');
+      await waitFor(dlgOpen);
+      await admin.keyboard.press('Shift+Slash');
+      await waitFor(async () => !(await dlgOpen()), { msg: '«?» no la cierra' });
+      await admin.locator('#keysBtn').click();
+      await waitFor(dlgOpen, { msg: 'el botón no abre la ayuda' });
+      await admin.keyboard.press('Escape');
+      await waitFor(async () => !(await dlgOpen()));
+      await waitFor(async () => (await active()) === 'keysBtn', { msg: 'el foco no vuelve al botón: ' + await active() });
+      // ---- asa de la cola: → no salta ----
+      const before = (await mockState()).mock.current;
+      await admin.locator('#card-queue .aq-item .grip').first().focus();
+      await admin.keyboard.press('ArrowRight');
+      await sleep(900);
+      expect((await mockState()).mock.current === before, '→ sobre el asa no salta');
+      // ---- avisos de altas: aria-hidden; errores: no ----
+      await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: 10, addCooldownSec: 0, noRepeatMin: 0 });
+      await toBody();
+      const t0 = T(37);
+      await api(gctx[0], 'GET', `search?q=${encodeURIComponent(t0.name.toLowerCase())}`);
+      const r = await api(gctx[0], 'POST', 'queue', { uri: t0.uri });
+      expect(r.status === 200, 'añadir a la cola: ' + JSON.stringify(r));
+      extra.push(r.body.item.qid);
+      await waitFor(async () => (await toastsAria()).some((t) => /añadi/.test(t.text)), { msg: 'no sale el aviso de alta' });
+      const adds = (await toastsAria()).filter((t) => /añadi/.test(t.text));
+      expect(adds.every((t) => t.hidden === 'true'), 'aviso de alta con aria-hidden: ' + JSON.stringify(adds));
+      const t1 = T(38);
+      await api(gctx[1], 'GET', `search?q=${encodeURIComponent(t1.name.toLowerCase())}`);
+      const r2 = await api(gctx[1], 'POST', 'queue', { uri: t1.uri });
+      extra.push(r2.body.item.qid);
+      await waitFor(async () => (await toastsAria()).some((t) => /añadieron/.test(t.text)), { msg: 'no se agrupa el aviso' });
+      const grouped = (await toastsAria()).filter((t) => /añadi/.test(t.text));
+      expect(grouped.length === 1 && grouped[0].hidden === 'true', 'aviso agrupado con aria-hidden: ' + JSON.stringify(grouped));
+      await admin.evaluate(async () => {
+        const { toast } = await import(new URL('../shared.js', document.querySelector('script[src*="admin.js"]').src));
+        toast('x', 'error', 6000);
+      });
+      const errs = (await toastsAria()).filter((t) => t.text === 'x');
+      expect(errs.length === 1 && errs[0].hidden === null, 'el error se sigue anunciando: ' + JSON.stringify(errs));
+      // ---- → salta: cambia la canción del mock ----
+      await toBody();
+      const cur = (await mockState()).mock.current;
+      await admin.keyboard.press('ArrowRight');
+      await waitFor(async () => (await mockState()).mock.current !== cur, { timeout: 5000, msg: '→ no salta' });
+      await waitFor(playing, { timeout: 10000, msg: 'el mock vuelve a sonar tras saltar' });
+      await waitFor(pausaBtn, { msg: 'el panel vuelve a «Pausa»' });
+      await toBody();
+      const cur2 = (await mockState()).mock.current;
+      await admin.keyboard.press('n');
+      await waitFor(async () => (await mockState()).mock.current !== cur2, { timeout: 5000, msg: 'N no salta' });
+    } finally {
+      for (const q of extra.splice(0)) await api(adminCtx, 'DELETE', `admin/queue/${q}`);
+      await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: prev.maxQueuedPerGuest, addCooldownSec: prev.addCooldownSec, noRepeatMin: prev.noRepeatMin });
+      await admin.setViewportSize(vp);
+      // la reproducción vuelve al estado de partida
+      await waitFor(async () => (await admin.locator('#card-player .btns button').first().isEnabled()), { msg: 'botón de reproducción' });
+      if (!wasPlaying) {
+        await waitFor(playing, { timeout: 10000, msg: 'esperar a que suene antes de pausar' });
+        await waitFor(pausaBtn, { msg: 'el panel muestra «Pausa»' });
+        await admin.locator('#card-player button', { hasText: 'Pausa' }).click();
+        await waitFor(async () => !(await playing()), { msg: 'restaurar pausa' });
+        await waitFor(async () => (await admin.locator('#card-player button', { hasText: 'Seguir' }).count()) > 0, { msg: 'el panel vuelve a «Seguir»' });
+      } else {
+        await waitFor(playing, { timeout: 10000, msg: 'restaurar reproducción' });
+      }
+    }
+  });
   await step('invitado: sin scroll horizontal a 360 px', async () => {
     const c = await newCtx(browser, 'mobile'); const p = await c.newPage(); watch(p, 'g-360');
     await p.setViewportSize({ width: 360, height: 740 });

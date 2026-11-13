@@ -32,6 +32,7 @@
       <div id="topChips" class="top-chips"></div>
       <div class="top-actions">
         <button id="pinJump" class="btn btn-sm pin-jump" type="button" aria-label="Ver PIN y QR de la fiesta" hidden><span id="pinJumpText">PIN</span></button>
+        <button id="keysBtn" class="btn btn-sm btn-ghost keys-btn" type="button" aria-keyshortcuts="?" aria-haspopup="dialog"></button>
         <a id="openScreen" class="btn btn-sm" href="../pantalla/" target="_blank" rel="noopener"></a>
         <button id="logout" class="btn btn-sm btn-ghost" type="button"></button>
       </div>
@@ -39,6 +40,24 @@
     <div id="alerts" class="alerts"></div>
     <main id="cards" class="cards"></main>
   </div>
+
+  <dialog id="keysDlg" class="dlg keys-dlg" aria-labelledby="keysTitle">
+    <div class="keys-wrap">
+      <div class="keys-head">
+        <h2 id="keysTitle" class="keys-title">Atajos de teclado</h2>
+        <button id="keysClose" class="btn btn-sm btn-ghost" type="button">Cerrar</button>
+      </div>
+      <dl class="keys-list">
+        <div class="keys-row"><dt><kbd>Espacio</kbd></dt><dd>Pausar o seguir</dd></div>
+        <div class="keys-row"><dt><kbd>→</kbd> <kbd>N</kbd></dt><dd>Saltar canción</dd></div>
+        <div class="keys-row"><dt><kbd>P</kbd></dt><dd>Ir a PIN y QR</dd></div>
+        <div class="keys-row"><dt><kbd>C</kbd></dt><dd>Ir a la cola</dd></div>
+        <div class="keys-row"><dt><kbd>I</kbd></dt><dd>Ir a invitados y su buscador</dd></div>
+        <div class="keys-row"><dt><kbd>?</kbd></dt><dd>Mostrar u ocultar esta lista</dd></div>
+      </dl>
+      <p class="keys-note">No funcionan mientras escribes en un campo.</p>
+    </div>
+  </dialog>
 
   <script type="module" src="admin.js"></script>
 </body>
