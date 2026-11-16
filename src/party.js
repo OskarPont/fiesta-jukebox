@@ -80,7 +80,10 @@ export class Party {
   // ---------- ajustes ----------
   updateSettings(partial) {
     const clean = validateSettings(partial);
+    const was = this.s.settings.ordering;
     Object.assign(this.s.settings, clean);
+    // las posiciones fijas del arrastre (orden de llegada) no valen con votos: se limpian al volver a «Por votos» (#60)
+    if (was === 'fifo' && this.s.settings.ordering === 'votes') for (const q of this.s.queue) q.manual = null;
     this.dirty();
     return this.s.settings;
   }
@@ -416,6 +419,7 @@ export class Party {
     this.dirty();
   }
   adminReorder(qids) {
+    if (this.settings.ordering === 'votes') throw new PartyError(409, 'ordered_by_votes', 'Con la cola por votos no se puede reordenar; usa «Poner la siguiente».');
     if (!Array.isArray(qids)) throw new PartyError(400, 'bad_request', 'Lista no válida.');
     const set = new Set();
     for (const id of qids) {

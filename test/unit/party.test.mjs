@@ -65,7 +65,8 @@ test('fifo ignora votos y la cancion fed va siempre primera', () => {
 });
 
 test('orden manual del admin manda sobre los votos', () => {
-  const { party, join, learn, tr, clock } = mk();
+  const { party, join, learn, tr, clock, state } = mk();
+  state.settings.ordering = 'fifo';
   const a = join('A'); const b = join('B');
   learn(1, 2, 3);
   const i1 = party.addTrack(a, tr(1).uri); clock.t += 10;
@@ -306,7 +307,9 @@ test('deshacer baja del anfitrion: vuelve al mismo puesto (votos y manual)', () 
   assert.equal(back, i3);
   assert.equal(back.votes.length, 2);
   assert.deepEqual(party.orderedQueue().map((x) => x.name), before);
-  // con manual
+  // con manual (el arrastre solo existe en orden de llegada)
+  party.settings.ordering = 'fifo';
+  party.settings.ordering = 'fifo';
   party.adminReorder([i2.qid, i1.qid, i3.qid]);
   const manual = party.orderedQueue().map((x) => x.name);
   assert.deepEqual(manual, ['T2', 'T1', 'T3']);
@@ -356,6 +359,7 @@ test('deshacer «Vaciar cola»: vuelven todas en su puesto; la enviada no se vac
   const i3 = party.addTrack(c, tr(3).uri); clock.t += 10;
   const i4 = party.addTrack(a, tr(4).uri);
   party.vote(b, i3.qid); party.vote(a, i3.qid);
+  party.settings.ordering = 'fifo';
   party.adminReorder([i2.qid, i3.qid, i1.qid, i4.qid]);
   i1.fed = true; // la que ya va a sonar
   const before = party.orderedQueue().map((x) => x.name);
@@ -395,4 +399,58 @@ test('desbanear: el invitado puede volver a entrar; solo si estaba baneado (#48)
   assert.equal(r.guest.id, a.id);
   throwsCode(() => party.unban(a.id), 'not_banned');
   throwsCode(() => party.unban('nadie'), 'not_found');
+});
+
+test('con votos, «Poner la siguiente» fija la canción y las demás siguen los votos (#60)', () => {
+  const { party, join, learn, tr, clock } = mk();
+  const a = join('A'); const b = join('B'); const c = join('C');
+  learn(1, 2, 3, 4);
+  const i1 = party.addTrack(a, tr(1).uri); clock.t += 10;
+  const i2 = party.addTrack(b, tr(2).uri); clock.t += 10;
+  const i3 = party.addTrack(c, tr(3).uri); clock.t += 10;
+  const i4 = party.addTrack(a, tr(4).uri);
+  party.adminTop(i1.qid);
+  assert.equal(party.orderedQueue()[0].name, 'T1');
+  party.vote(a, i3.qid); party.vote(b, i3.qid);
+  assert.deepEqual(party.orderedQueue().map((x) => x.name), ['T1', 'T3', 'T2', 'T4']);
+  // una nueva con más votos adelanta a las no fijadas, no a la fijada
+  party.vote(a, i2.qid); party.vote(c, i2.qid);
+  assert.deepEqual(party.orderedQueue().map((x) => x.name), ['T1', 'T2', 'T3', 'T4']);
+  // la siguiente fijada después se pone delante de la anterior
+  party.adminTop(i4.qid);
+  assert.deepEqual(party.orderedQueue().map((x) => x.name), ['T4', 'T1', 'T2', 'T3']);
+  assert.equal(party.orderedQueue().length, 4, 'no se pierde ninguna');
+});
+
+test('adminReorder: 409 con votos y funciona con orden de llegada (#60)', () => {
+  const { party, join, learn, tr, clock, state } = mk();
+  const a = join('A');
+  learn(1, 2);
+  const i1 = party.addTrack(a, tr(1).uri); clock.t += 10;
+  const i2 = party.addTrack(a, tr(2).uri);
+  throwsCode(() => party.adminReorder([i2.qid, i1.qid]), 'ordered_by_votes');
+  assert.deepEqual(party.orderedQueue().map((x) => x.name), ['T1', 'T2']);
+  state.settings.ordering = 'fifo';
+  party.adminReorder([i2.qid, i1.qid]);
+  assert.deepEqual(party.orderedQueue().map((x) => x.name), ['T2', 'T1']);
+});
+
+test('al pasar de orden de llegada a votos se limpian las posiciones fijas; al revés se conservan (#60)', () => {
+  const { party, join, learn, tr, clock } = mk();
+  const a = join('A'); const b = join('B');
+  learn(1, 2, 3);
+  const i1 = party.addTrack(a, tr(1).uri); clock.t += 10;
+  const i2 = party.addTrack(b, tr(2).uri); clock.t += 10;
+  const i3 = party.addTrack(a, tr(3).uri);
+  party.updateSettings({ ordering: 'fifo' });
+  party.adminReorder([i3.qid, i2.qid, i1.qid]);
+  assert.deepEqual(party.orderedQueue().map((x) => x.name), ['T3', 'T2', 'T1']);
+  party.updateSettings({ ordering: 'votes' });
+  assert.ok([i1, i2, i3].every((i) => i.manual == null), 'posiciones limpias');
+  assert.deepEqual(party.orderedQueue().map((x) => x.name), ['T1', 'T2', 'T3']);
+  party.adminTop(i3.qid);
+  party.updateSettings({ ordering: 'fifo' });
+  assert.equal(i3.manual != null, true, 'al pasar a fifo se conservan');
+  assert.equal(party.orderedQueue()[0].name, 'T3');
+  assert.equal(party.orderedQueue().length, 3);
 });
