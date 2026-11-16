@@ -544,7 +544,7 @@ cards.queue = (() => {
   let byVotes = true;
   const HINTS = {
     votes: 'Ordenada por votos. Con «Poner la siguiente» una canción pasa delante de todas.',
-    fifo: 'Arrastra el asa para cambiar el orden. Al mover algo a mano, deja de depender de los votos.',
+    fifo: 'Por orden de llegada. Arrastra el asa para cambiar el orden.',
   };
 
   /** Filas movibles (sin las ya enviadas a Spotify), en el orden actual del DOM. */
