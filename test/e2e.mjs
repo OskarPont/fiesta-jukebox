@@ -919,6 +919,49 @@ async function main() {
     expect(w <= 392, 'sin scroll horizontal en admin movil: ' + w + ' ' + off.join(' '));
     await mctx.close();
   });
+  await step('admin: en movil la cola se lee (título ~20 letras, artista visible) y los botones miden 44 px (#53)', async () => {
+    const mctx = await newCtx(browser, 'mobile'); await mctx.addCookies(await adminCtx.cookies());
+    const mp = await mctx.newPage(); watch(mp, 'admin-movil-cola');
+    try {
+      await mp.goto('admin/'); await mp.waitForSelector('#dash:not([hidden])');
+      await mp.locator('#card-queue .aq-item:not(.fed) .t').first().waitFor();
+      const measure = () => mp.evaluate(() => {
+        const row = document.querySelector('#card-queue .aq-item:not(.fed)');
+        const w = (q) => row.querySelector(q).getBoundingClientRect();
+        const box = (q) => { const r = w(q); return [Math.round(r.width), Math.round(r.height)]; };
+        const t = row.querySelector('.t');
+        const cs = getComputedStyle(t);
+        return {
+          t: Math.round(t.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)),
+          art: Math.round(w('.art').width), grip: box('.grip'), top: box('.top'), del: box('.del'),
+          img: getComputedStyle(row.querySelector('img')).display,
+          scrollW: document.documentElement.scrollWidth, innerW: window.innerWidth,
+        };
+      });
+      // títulos y artistas largos: el título sigue ocupando toda su zona y se recorta con puntos suspensivos
+      await mp.evaluate(() => {
+        for (const li of document.querySelectorAll('#card-queue .aq-item:not(.fed)')) {
+          li.querySelector('.t').textContent = 'Dominican Republic Summer Mix Edition 2026';
+          li.querySelector('.art').textContent = 'Bad Bunny, Jhay Cortez, J Balvin, Rosalía';
+        }
+      });
+      const m = await measure();
+      await shot(mp, '53-admin-cola-movil', { fullPage: false });
+      expect(m.t >= 160, 'el título mide al menos 160 px: ' + JSON.stringify(m));
+      expect(m.art >= 40, 'el artista no se queda en una letra: ' + JSON.stringify(m));
+      expect(m.img === 'none', 'sin carátula en móvil: ' + JSON.stringify(m));
+      for (const k of ['grip', 'top', 'del']) expect(m[k][0] >= 44 && m[k][1] >= 44, `${k} mide al menos 44x44: ` + JSON.stringify(m));
+      expect(m.scrollW <= m.innerW, 'sin scroll horizontal: ' + JSON.stringify(m));
+    } finally { await mctx.close(); }
+    // escritorio: la carátula sigue visible
+    const vp = admin.viewportSize();
+    await admin.setViewportSize({ width: 1280, height: 900 });
+    try {
+      await admin.locator('#card-queue .aq-item:not(.fed) img').first().waitFor();
+      const d = await admin.evaluate(() => { const i = document.querySelector('#card-queue .aq-item:not(.fed) img'); const r = i.getBoundingClientRect(); return { display: getComputedStyle(i).display, w: r.width, h: r.height }; });
+      expect(d.display !== 'none' && d.w >= 40 && d.h >= 40, 'en escritorio se ve la carátula: ' + JSON.stringify(d));
+    } finally { if (vp) await admin.setViewportSize(vp); }
+  });
   await step('admin: modo fiesta, lo esencial arriba, PIN a mano y rejilla estable (#9)', async () => {
     const tops = () => admin.evaluate(() => Object.fromEntries([...document.querySelectorAll('#cards .acard')].map((c) => { const r = c.getBoundingClientRect(); return [c.id, { x: Math.round(r.left), top: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) }]; })));
     const domOrder = () => admin.evaluate(() => [...document.querySelectorAll('#cards .acard')].map((c) => c.id.replace('card-', '')));
