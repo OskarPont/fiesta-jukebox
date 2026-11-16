@@ -538,7 +538,14 @@ cards.queue = (() => {
   });
   c.root.querySelector('header').append(el('div', { class: 'hd-acts' }, clear, gear.btn));
   const live = el('p', { class: 'sr-only', id: 'queueLive', 'aria-live': 'polite' });
-  c.body.append(gear.body, list, empty, live, el('p', { class: 'hint', text: 'Arrastra el asa para cambiar el orden. Al mover algo a mano, deja de depender de los votos.' }));
+  const hint = el('p', { class: 'hint' });
+  c.body.append(gear.body, list, empty, live, hint);
+  /** Con la cola por votos no se reordena a mano: solo «Poner la siguiente». Se actualiza en vivo con el ajuste. */
+  let byVotes = true;
+  const HINTS = {
+    votes: 'Ordenada por votos. Con «Poner la siguiente» una canción pasa delante de todas.',
+    fifo: 'Arrastra el asa para cambiar el orden. Al mover algo a mano, deja de depender de los votos.',
+  };
 
   /** Filas movibles (sin las ya enviadas a Spotify), en el orden actual del DOM. */
   const movable = () => [...list.children].filter((x) => !x.classList.contains('fed'));
@@ -554,12 +561,12 @@ cards.queue = (() => {
       el('div', { class: 'aq-main' }, el('div', { class: 't ellipsis' }), el('div', { class: 's' })),
       el('div', { class: 'aq-btns' },
         el('span', { class: 'votes-tag' }),
-        el('button', { class: 'icon-btn top', type: 'button', title: 'Subir arriba', 'aria-label': 'Poner la primera' }, icon('up')),
+        el('button', { class: 'icon-btn top', type: 'button', title: 'Poner la siguiente', 'aria-label': 'Poner la siguiente' }, icon('next')),
         el('button', { class: 'icon-btn del', type: 'button', title: 'Quitar', 'aria-label': 'Quitar de la cola' }, icon('trash'))));
     li.querySelector('.top').addEventListener('click', async () => {
       try {
         await api(`admin/queue/${encodeURIComponent(li.dataset.key)}/top`, { method: 'POST' });
-        announce(li, [li, ...movable().filter((x) => x !== li)]);
+        announce(li, [li, ...movable().filter((x) => x !== li)]);   // «…, puesto 1 de N»
       } catch (e) { toast(e.message, 'error'); }
     });
     li.querySelector('.del').addEventListener('click', async () => {
@@ -580,7 +587,7 @@ cards.queue = (() => {
       } catch (e) { toast(e.message, 'error'); }
     });
     li.querySelector('.grip').addEventListener('keydown', (ev) => {
-      if (ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown') return;
+      if (byVotes || (ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown')) return;
       ev.preventDefault();
       const items = movable();
       const i = items.indexOf(li);
@@ -606,7 +613,7 @@ cards.queue = (() => {
     const vt = li.querySelector('.votes-tag');
     vt.replaceChildren(); if (q.votes) vt.append(icon('up', 'sm'), String(q.votes));
     const g = li.querySelector('.grip');
-    g.hidden = q.fed;
+    g.hidden = q.fed || byVotes;
     g.setAttribute('aria-label', `Mover ${q.name}. Flechas arriba y abajo para cambiar el puesto`);
     li.querySelector('.top').hidden = q.fed;
     li.querySelector('.del').hidden = q.fed;
@@ -618,6 +625,9 @@ cards.queue = (() => {
     update(s) {
       if (dragging) return;
       const focused = list.contains(document.activeElement) && document.activeElement.classList.contains('grip') ? document.activeElement : null;
+      byVotes = s.settings.ordering !== 'fifo';
+      list.classList.toggle('by-votes', byVotes);
+      setText(hint, HINTS[byVotes ? 'votes' : 'fifo']);
       reconcile(list, s.queue, (q) => q.qid, create, upd);
       if (focused && document.activeElement !== focused && focused.isConnected) focused.focus();
       empty.hidden = s.queue.length > 0; list.hidden = s.queue.length === 0;
@@ -632,7 +642,7 @@ function attachDrag(li, list, announce) {
   const grip = li.querySelector('.grip');
   grip.addEventListener('pointerdown', (e) => {
     if (e.button !== undefined && e.button > 0) return;
-    if (li.classList.contains('fed')) return;
+    if (li.classList.contains('fed') || list.classList.contains('by-votes')) return;
     e.preventDefault();
     const items = [...list.children].filter((x) => !x.classList.contains('fed'));
     const idx0 = items.indexOf(li);

@@ -824,7 +824,7 @@ async function main() {
   });
   await step('admin: ve cola con asas, sube a la primera y reordena arrastrando', async () => {
     await api(adminCtx, 'POST', 'admin/queue/clear');
-    await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: 5 });
+    await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: 5, ordering: 'fifo' });   // arrastrar solo existe con orden de llegada (#60)
     await admin.locator('#card-player button', { hasText: 'Pausa' }).click();   // pausar para que no alimente
     await waitFor(async () => (await mockState()).mock.playing === false);
     for (const [i, gi] of [[11, 0], [12, 1], [14, 2], [15, 0]]) await guestAdd(g[gi], T(i));
@@ -948,10 +948,33 @@ async function main() {
       const m = await measure();
       await shot(mp, '53-admin-cola-movil', { fullPage: false });
       expect(m.t >= 160, 'el título mide al menos 160 px: ' + JSON.stringify(m));
+      expect(m.grip[0] >= 44, 'con orden de llegada hay asa: ' + JSON.stringify(m));
       expect(m.art >= 40, 'el artista no se queda en una letra: ' + JSON.stringify(m));
       expect(m.img === 'none', 'sin carátula en móvil: ' + JSON.stringify(m));
       for (const k of ['grip', 'top', 'del']) expect(m[k][0] >= 44 && m[k][1] >= 44, `${k} mide al menos 44x44: ` + JSON.stringify(m));
       expect(m.scrollW <= m.innerW, 'sin scroll horizontal: ' + JSON.stringify(m));
+      // con votos no hay asa ni columna vacía para ella: el título gana ese ancho (#60)
+      await api(adminCtx, 'PUT', 'admin/settings', { ordering: 'votes' });
+      await waitFor(async () => mp.evaluate(() => document.querySelector('#card-queue .aq').classList.contains('by-votes')), { msg: 'el panel no pasa a «por votos»' });
+      await mp.evaluate(() => {
+        for (const li of document.querySelectorAll('#card-queue .aq-item:not(.fed)')) {
+          li.querySelector('.t').textContent = 'Dominican Republic Summer Mix Edition 2026';
+          li.querySelector('.art').textContent = 'Bad Bunny, Jhay Cortez, J Balvin, Rosalía';
+        }
+      });
+      const v2 = await mp.evaluate(() => {
+        const row = document.querySelector('#card-queue .aq-item:not(.fed)');
+        const b = (q) => { const r = row.querySelector(q).getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; };
+        const t = row.querySelector('.t');
+        return { t: Math.round(t.getBoundingClientRect().width), art: b('.art')[0], grip: getComputedStyle(row.querySelector('.grip')).display, top: b('.top'), del: b('.del'), scrollW: document.documentElement.scrollWidth, innerW: window.innerWidth };
+      });
+      await sleep(700);   // que acabe la animación al reordenarse la lista
+      await shot(mp, '53-admin-cola-movil-votos', { fullPage: false });
+      expect(v2.grip === 'none', 'sin asa con votos: ' + JSON.stringify(v2));
+      expect(v2.t >= m.t + 30, 'sin asa el título es más ancho: ' + JSON.stringify(v2));
+      for (const k of ['top', 'del']) expect(v2[k][0] >= 44 && v2[k][1] >= 44, `${k} mide al menos 44x44 con votos: ` + JSON.stringify(v2));
+      expect(v2.scrollW <= v2.innerW, 'sin scroll horizontal con votos: ' + JSON.stringify(v2));
+      await api(adminCtx, 'PUT', 'admin/settings', { ordering: 'fifo' });
     } finally { await mctx.close(); }
     // escritorio: la carátula sigue visible
     const vp = admin.viewportSize();
@@ -961,6 +984,42 @@ async function main() {
       const d = await admin.evaluate(() => { const i = document.querySelector('#card-queue .aq-item:not(.fed) img'); const r = i.getBoundingClientRect(); return { display: getComputedStyle(i).display, w: r.width, h: r.height }; });
       expect(d.display !== 'none' && d.w >= 40 && d.h >= 40, 'en escritorio se ve la carátula: ' + JSON.stringify(d));
     } finally { if (vp) await admin.setViewportSize(vp); }
+  });
+  await step('admin: con votos no hay asa y «Poner la siguiente» fija la canción; en orden de llegada vuelve el asa (#60)', async () => {
+    await api(adminCtx, 'PUT', 'admin/settings', { ordering: 'votes' });
+    const items = admin.locator('#card-queue .aq-item:not(.fed)');
+    const titles = async () => clean((await items.locator('.t').allTextContents()).map((x) => x.trim()));
+    await waitFor(async () => (await items.count()) >= 3, { msg: 'hace falta cola para probar' });
+    await waitFor(async () => admin.evaluate(() => document.querySelector('#card-queue .aq').classList.contains('by-votes')), { msg: 'el panel no pasa a «por votos»' });
+    const vis = () => admin.evaluate(() => [...document.querySelectorAll('#card-queue .aq-item:not(.fed) .grip')].filter((g) => g.offsetParent !== null).length);
+    expect((await vis()) === 0, 'con votos no hay asas visibles');
+    expect((await admin.locator('#card-queue .hint').textContent()).includes('Poner la siguiente'), 'pista de votos');
+    const top = items.nth(2).locator('.top');
+    expect((await top.getAttribute('aria-label')) === 'Poner la siguiente' && (await top.getAttribute('title')) === 'Poner la siguiente', 'etiqueta del botón');
+    const t0 = await titles();
+    const pick = t0[2];
+    await top.click();
+    await waitFor(async () => (await titles())[0] === pick, { msg: 'no queda la primera: ' + (await titles()).join('|') });
+    await waitFor(async () => (await admin.locator('#queueLive').textContent()).includes(`${pick}, puesto 1 de`), { msg: 'sin anuncio' });
+    // una fijada no la adelanta un voto a otra
+    const last = (await titles()).at(-1);
+    let voted = false;
+    for (const p of g) {
+      const b = p.locator('#queue .q-item', { hasText: last }).locator('.vote');
+      if ((await b.count()) && !(await b.first().isDisabled())) { await b.first().click(); voted = true; break; }
+    }
+    expect(voted, 'algún invitado puede votar la última');
+    await waitFor(async () => (await admin.locator('#card-queue .aq-item:not(.fed) .votes-tag', { hasText: /\d/ }).count()) >= 1, { msg: 'el voto no llega' });
+    await sleep(300);
+    expect((await titles())[0] === pick, 'un voto no adelanta a la fijada: ' + (await titles()).join('|'));
+    // reordenar a mano no es posible con votos
+    const r = await api(adminCtx, 'POST', 'admin/queue/reorder', { qids: [] });
+    expect(r.status === 409, 'reorder con votos da 409: ' + r.status);
+    // orden de llegada: vuelve el asa
+    await api(adminCtx, 'PUT', 'admin/settings', { ordering: 'fifo' });
+    await waitFor(async () => (await vis()) === (await items.count()), { msg: 'vuelve el asa en orden de llegada' });
+    expect(!(await admin.locator('#card-queue .hint').textContent()).includes('Poner la siguiente'), 'pista de orden de llegada');
+    await api(adminCtx, 'PUT', 'admin/settings', { ordering: 'votes' });
   });
   await step('admin: modo fiesta, lo esencial arriba, PIN a mano y rejilla estable (#9)', async () => {
     const tops = () => admin.evaluate(() => Object.fromEntries([...document.querySelectorAll('#cards .acard')].map((c) => { const r = c.getBoundingClientRect(); return [c.id, { x: Math.round(r.left), top: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) }]; })));
@@ -1333,10 +1392,13 @@ async function main() {
       await waitFor(async () => (await active()) === 'keysBtn', { msg: 'el foco no vuelve al botón: ' + await active() });
       // ---- asa de la cola: → no salta ----
       const before = (await mockState()).mock.current;
+      await api(adminCtx, 'PUT', 'admin/settings', { ordering: 'fifo' });   // el asa solo existe con orden de llegada (#60)
+      await waitFor(async () => admin.evaluate(() => { const g = document.querySelector('#card-queue .aq-item .grip'); return !!g && g.offsetParent !== null; }), { msg: 'el asa no aparece' });
       await admin.locator('#card-queue .aq-item .grip').first().focus();
       await admin.keyboard.press('ArrowRight');
       await sleep(900);
       expect((await mockState()).mock.current === before, '→ sobre el asa no salta');
+      await api(adminCtx, 'PUT', 'admin/settings', { ordering: 'votes' });
       // ---- avisos de altas: aria-hidden; errores: no ----
       await api(adminCtx, 'PUT', 'admin/settings', { maxQueuedPerGuest: 10, addCooldownSec: 0, noRepeatMin: 0 });
       await toBody();
