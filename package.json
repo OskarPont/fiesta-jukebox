@@ -9,7 +9,7 @@
     "e2e": "node test/e2e.mjs"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=26"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

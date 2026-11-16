@@ -1325,6 +1325,8 @@ async function main() {
       await waitFor(async () => (await mockState()).mock.current !== cur, { timeout: 5000, msg: '→ no salta' });
       await waitFor(playing, { timeout: 10000, msg: 'el mock vuelve a sonar tras saltar' });
       await waitFor(pausaBtn, { msg: 'el panel vuelve a «Pausa»' });
+      // el botón Saltar queda bloqueado un momento tras el salto anterior: se espera a que esté activo (en CI tarda más)
+      await waitFor(async () => admin.locator('#card-player button', { hasText: 'Saltar' }).isEnabled(), { msg: 'Saltar no vuelve a estar activo' });
       await toBody();
       const cur2 = (await mockState()).mock.current;
       await admin.keyboard.press('n');
